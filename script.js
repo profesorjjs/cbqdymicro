@@ -122,7 +122,7 @@ let globalConfig = {
   deepAI: DEEP_AI_CONFIG,
 
   // CBQD
-  cbqdEnabled: true,
+  cbqdEnabled: DEFAULT_CBQD_ENABLED,
   cbqdItems: DEFAULT_CBQD_ITEMS
 };
 
@@ -179,6 +179,7 @@ const aiEdgeDensityEnabled = document.getElementById("ai-edgedensity-enabled");
 const aiEdgeDensityWeight = document.getElementById("ai-edgedensity-weight");
 const saveAiConfigButton = document.getElementById("save-ai-config-button");
 // CBQD: controles en Admin
+const cbqdEnabledToggle = document.getElementById("cbqd-enabled-toggle");
 const cbqdItemsTextarea = document.getElementById("cbqd-items-textarea");
 const saveCbqdItemsButton = document.getElementById("save-cbqd-items-button");
 
@@ -318,7 +319,11 @@ function applyConfigToAdmin() {
     adminPasswordInput.value = auth.adminPassword || "";
   }
 
+
   // CBQD
+  if (cbqdEnabledToggle) {
+    cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
+  }
   if (cbqdItemsTextarea) {
     cbqdItemsTextarea.value = (globalConfig.cbqdItems || []).map(it => `${it.domain || "GENERAL"}|${it.text || ""}`.trim()).join("\n");
   }
@@ -467,7 +472,7 @@ async function loadGlobalConfig(forceServer = false) {
       globalConfig.aiConfig = mergeAiConfig(data.aiConfig);
       globalConfig.authConfig = mergeAuthConfig(data.authConfig);
       globalConfig.deepAI = mergeDeepAIConfig(data.deepAI);
-      globalConfig.cbqdEnabled = true;
+      globalConfig.cbqdEnabled = (data.cbqdEnabled !== undefined) ? !!data.cbqdEnabled : DEFAULT_CBQD_ENABLED;
       globalConfig.cbqdItems = Array.isArray(data.cbqdItems) ? data.cbqdItems : DEFAULT_CBQD_ITEMS;
 
       // Guarda una copia utilizable de contraseñas para iOS/Safari (si más tarde Firestore falla)
@@ -479,7 +484,7 @@ async function loadGlobalConfig(forceServer = false) {
       globalConfig.aiConfig = DEFAULT_AI_CONFIG;
       globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
       globalConfig.deepAI = DEEP_AI_CONFIG;
-      globalConfig.cbqdEnabled = true;
+      globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
       globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
 
       saveAuthCache(globalConfig.authConfig);
@@ -492,7 +497,7 @@ async function loadGlobalConfig(forceServer = false) {
     globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
     globalConfig.aiConfig = DEFAULT_AI_CONFIG;
     globalConfig.deepAI = DEEP_AI_CONFIG;
-    globalConfig.cbqdEnabled = true;
+    globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
     globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
 
     // En iOS/Safari puede fallar puntualmente Firestore: intenta usar la última config válida
@@ -1189,11 +1194,11 @@ document.getElementById("login-button").addEventListener("click", async () => {
   // 2) Intenta SIEMPRE refrescar la configuración real desde Firestore.
   //    Esto es clave para que cambios recientes (p. ej., cbqdEnabled) se reflejen al entrar como alumnado.
   try {
-    await loadGlobalConfig();
+    await loadGlobalConfig(true);
   } catch (err) {
     // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
     if (!ok) {
-      try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+      try { await sleep(200); await loadGlobalConfig(true); } catch (_) {}
     }
   }
   const role = document.getElementById("role-select").value;
@@ -1233,7 +1238,42 @@ document.getElementById("login-button").addEventListener("click", async () => {
 });
 
 
-// ----- CBQD (ADMIN): configurar ítems -----
+// ----- CBQD (ADMIN): activar/desactivar + configurar ítems -----
+if (cbqdEnabledToggle) {
+  cbqdEnabledToggle.addEventListener("change", async () => {
+    const prev = !!globalConfig.cbqdEnabled;
+    globalConfig.cbqdEnabled = !!cbqdEnabledToggle.checked;
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { cbqdEnabled: globalConfig.cbqdEnabled };
+      if (!snap.exists()) {
+        // crear doc completo con defaults mínimos
+        await setDoc(configDocRef, {
+          askCenter: globalConfig.askCenter,
+          centers: globalConfig.centers || [],
+          ratingItems: globalConfig.ratingItems || DEFAULT_RATING_ITEMS,
+          aiConfig: globalConfig.aiConfig || DEFAULT_AI_CONFIG,
+          authConfig: globalConfig.authConfig || DEFAULT_AUTH_CONFIG,
+          deepAI: globalConfig.deepAI || DEEP_AI_CONFIG,
+          cbqdEnabled: globalConfig.cbqdEnabled,
+          cbqdItems: globalConfig.cbqdItems || DEFAULT_CBQD_ITEMS
+        });
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+
+      // Verificación inmediata (evita la sensación de "lo marco pero no hace nada")
+      await loadGlobalConfig(true);
+      applyConfigToAdmin();
+    } catch (err) {
+      console.error("Error guardando cbqdEnabled:", err);
+      alert("No se ha podido guardar el estado del CBQD.");
+      // revertir estado y visualmente
+      globalConfig.cbqdEnabled = prev;
+      cbqdEnabledToggle.checked = prev;
+    }
+  });
+}
 
 if (saveCbqdItemsButton) {
   saveCbqdItemsButton.addEventListener("click", async () => {
@@ -1308,17 +1348,15 @@ const cbqdScoreBox = document.getElementById("cbqd-scorebox");
 const cbqdStepEl = document.querySelector('.wizard-step[data-step="2"]');
 
 function syncCbqdStepVisibility() {
+  // El paso 2 existe siempre. Su contenido informa si el CBQD está desactivado.
   if (!cbqdStepEl) return;
-  if (globalConfig.cbqdEnabled) cbqdStepEl.classList.remove("hidden");
-  else cbqdStepEl.classList.add("hidden");
+  cbqdStepEl.classList.remove("hidden");
 }
 
 function computeWizardOrder() {
-  // Siempre existen los pasos 1..5 en el DOM, pero el paso 2 puede saltarse.
-  const order = [1];
-  if (globalConfig.cbqdEnabled) order.push(2);
-  order.push(3, 4, 5);
-  return order;
+  // Mantén el paso 2 (CBQD) siempre en el flujo del alumnado.
+  // Si está desactivado o no hay ítems, se mostrará un aviso en el propio paso.
+  return [1, 2, 3, 4, 5];
 }
 
 let wizardOrder = computeWizardOrder();
@@ -1347,6 +1385,7 @@ function showWizardStepByIndex(idx) {
       cbqdDisabledBox?.classList.remove("hidden");
       cbqdWarningBox?.classList.add("hidden");
       cbqdScoreBox?.classList.add("hidden");
+      if (cbqdItemsHost) cbqdItemsHost.innerHTML = "";
     } else if (!items.length) {
       cbqdDisabledBox?.classList.add("hidden");
       cbqdWarningBox?.classList.remove("hidden");
