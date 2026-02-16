@@ -2667,9 +2667,9 @@ function buildCsvContent(rows, delimiter = ";") {
 }
 
 
-// Código corto y estable para identificar alumnado en CSV (evita IDs largos de Firestore).
-// Determinista: mismo participantId -> mismo student_code.
-function makeStudentCode(id, length = 8) {
+// Códigos cortos y estables para identificadores en CSV (evita IDs largos de Firestore).
+// Determinista: mismo id -> mismo code.
+function makeIdCode(id, length = 8) {
   const s = String(id ?? "");
   if (!s) return "";
   // FNV-1a 32-bit (rápido y suficiente para códigos cortos)
@@ -2681,6 +2681,17 @@ function makeStudentCode(id, length = 8) {
   // Base36 y padding para longitud fija
   const code = h.toString(36).toUpperCase();
   return code.padStart(length, "0").slice(-length);
+}
+
+// Alias semánticos (por claridad en CSV)
+function makeStudentCode(participantId, length = 8) {
+  return makeIdCode(participantId, length);
+}
+function makeSessionCode(sessionId, length = 8) {
+  return makeIdCode(sessionId, length);
+}
+function makePhotoCode(photoId, length = 8) {
+  return makeIdCode(photoId, length);
 }
 
 function triggerCsvDownload(csvContent, filenameBase) {
@@ -2753,13 +2764,15 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
 
     const header = [
       // Identificación y estructura
-      "fotoId",
-      "taskId",
+      "photo_code",
+      "session_code",
       "student_code",
-      "sessionId",
+      "taskId",
       "submittedAt",
       "createdAt",
       "text280",
+      "fotoId_raw",
+      "sessionId_raw",
 
       // Demografía
       "sexo",
@@ -2890,13 +2903,15 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       const cbqd = pickCbqd(p, s);
 
       const base = [
-        photoId,
-        p.taskId || "",
+        makePhotoCode(photoId),
+        makeSessionCode(p.sessionId || ""),
         makeStudentCode(p.participantId || s?.participantId || ""),
-        p.sessionId || "",
+        p.taskId || "",
         p.submittedAt || s?.submittedAt || "",
         p.createdAt || "",
         p.text280 || "",
+        photoId,
+        p.sessionId || "",
 
         dem.gender,
         dem.age,
@@ -3027,9 +3042,10 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
 
     // Cabecera
     const header = [
-      "sessionId",
+      "session_code",
       "student_code",
       "createdAt",
+      "sessionId_raw",
       "gender",
       "age",
       "studies",
@@ -3050,21 +3066,24 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       "cbqd_answered",
       "cbqd_missing",
       // agregados por tarea
-      "task1_photoId",
+      "task1_photo_code",
+      "task1_photoId_raw",
       "task1_aiScore",
       "task1_localAdvancedScore",
       "task1_deepScore",
       "task1_puntf_mean",
       "task1_puntf_sd",
       "task1_puntf_n",
-      "task2_photoId",
+      "task2_photo_code",
+      "task2_photoId_raw",
       "task2_aiScore",
       "task2_localAdvancedScore",
       "task2_deepScore",
       "task2_puntf_mean",
       "task2_puntf_sd",
       "task2_puntf_n",
-      "task3_photoId",
+      "task3_photo_code",
+      "task3_photoId_raw",
       "task3_aiScore",
       "task3_localAdvancedScore",
       "task3_deepScore",
@@ -3099,14 +3118,15 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
 
       const taskAgg = (t) => {
         const p = byTask[t];
-        if (!p) return { photoId: "", aiScore: "", localAdvancedScore: "", deepScore: "", puntfMean: "", puntfSd: "", puntfN: "" };
+        if (!p) return { photoCode: "", photoIdRaw: "", aiScore: "", localAdvancedScore: "", deepScore: "", puntfMean: "", puntfSd: "", puntfN: "" };
         const rs = ratingsByPhoto[p.photoId] || [];
         const puntfs = rs.map(r => (typeof r.puntf === "number" ? r.puntf : null));
         const m = mean(puntfs);
         const sdev = sd(puntfs);
         const n = puntfs.filter(v => typeof v === "number" && Number.isFinite(v)).length;
         return {
-          photoId: p.photoId,
+          photoCode: makePhotoCode(p.photoId),
+          photoIdRaw: p.photoId,
           aiScore: p.aiScore ?? "",
           localAdvancedScore: p.localAdvancedScore ?? "",
           deepScore: p.deepScore ?? "",
@@ -3122,7 +3142,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
 
       const overallNums = [t1, t2, t3]
         .flatMap(t => {
-          const p = t.photoId ? (ratingsByPhoto[t.photoId] || []) : [];
+          const p = t.photoIdRaw ? (ratingsByPhoto[t.photoIdRaw] || []) : [];
           return p.map(r => (typeof r.puntf === "number" ? r.puntf : null));
         })
         .filter(v => typeof v === "number" && Number.isFinite(v));
@@ -3130,9 +3150,10 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       const overallMean = overallNums.length ? (overallNums.reduce((a, b) => a + b, 0) / overallNums.length) : null;
 
       rows.push([
-        sessionId,
+        makeSessionCode(sessionId),
         makeStudentCode(s?.participantId || sessionId),
         s?.createdAt || "",
+        sessionId,
 
         dem.gender ?? "",
         dem.age ?? "",
@@ -3155,7 +3176,8 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         cbqd.answered ?? "",
         cbqd.missing ?? "",
 
-        t1.photoId,
+        t1.photoCode,
+        t1.photoIdRaw,
         t1.aiScore,
         t1.localAdvancedScore,
         t1.deepScore,
@@ -3163,7 +3185,8 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         t1.puntfSd,
         t1.puntfN,
 
-        t2.photoId,
+        t2.photoCode,
+        t2.photoIdRaw,
         t2.aiScore,
         t2.localAdvancedScore,
         t2.deepScore,
@@ -3171,7 +3194,8 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         t2.puntfSd,
         t2.puntfN,
 
-        t3.photoId,
+        t3.photoCode,
+        t3.photoIdRaw,
         t3.aiScore,
         t3.localAdvancedScore,
         t3.deepScore,
