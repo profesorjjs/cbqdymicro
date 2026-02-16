@@ -1474,10 +1474,57 @@ function resetUploaderState({ newParticipant = true } = {}) {
     submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
   }
 
+  // Rehabilita navegación (p. ej. \"Atrás\") para el siguiente alumno
+  setWizardNavDisabled(false);
+
   // Nuevo participante (evita arrastrar identificación entre alumnos)
   if (newParticipant) clearParticipantId();
+
+
+  // Limpia el cache de sesión actual (para que el siguiente alumno empiece limpio)
+  clearCurrentSessionCache();
 }
 
+
+
+// ----- Idempotencia de envíos (evita duplicados en Firestore) -----
+// Si el envío falla a mitad (corte de red, refresh, etc.), reutilizamos el mismo sessionId
+// y sobreescribimos los documentos de fotos por tarea en vez de crear nuevos.
+const LS_CURRENT_SESSION_ID_KEY = "cbqd_current_session_id";
+const LS_CURRENT_SUBMITTED_AT_KEY = "cbqd_current_submitted_at";
+
+function getOrCreateCurrentSessionId() {
+  try {
+    const existing = localStorage.getItem(LS_CURRENT_SESSION_ID_KEY);
+    if (existing) return existing;
+  } catch (_) {}
+  const id = newSessionId();
+  try { localStorage.setItem(LS_CURRENT_SESSION_ID_KEY, id); } catch (_) {}
+  return id;
+}
+
+function getOrCreateCurrentSubmittedAt() {
+  try {
+    const existing = localStorage.getItem(LS_CURRENT_SUBMITTED_AT_KEY);
+    if (existing) return existing;
+  } catch (_) {}
+  const ts = nowIso();
+  try { localStorage.setItem(LS_CURRENT_SUBMITTED_AT_KEY, ts); } catch (_) {}
+  return ts;
+}
+
+function clearCurrentSessionCache() {
+  try { localStorage.removeItem(LS_CURRENT_SESSION_ID_KEY); } catch (_) {}
+  try { localStorage.removeItem(LS_CURRENT_SUBMITTED_AT_KEY); } catch (_) {}
+}
+
+// Deshabilitar/habilitar navegación del wizard (para evitar reenvíos tras un envío correcto)
+function setWizardNavDisabled(disabled) {
+  [wizardBack, wizardBack3, wizardBack4, wizardBack5, wizardNext, wizardNext2, wizardNext3, wizardNext4].forEach(btn => {
+    if (!btn) return;
+    btn.disabled = !!disabled;
+  });
+}
 
 function newSessionId() {
   return `S_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -1912,8 +1959,8 @@ submitAllBtn?.addEventListener("click", async () => {
     }
 
     const participantId = ensureParticipantId();
-    const sessionId = newSessionId();
-    const submittedAt = nowIso();
+    const sessionId = getOrCreateCurrentSessionId();
+    const submittedAt = getOrCreateCurrentSubmittedAt();
 
     // Demografía (campos ya existentes)
     const ageValue = Number(document.getElementById("age")?.value || 0);
@@ -2063,7 +2110,7 @@ submitAllBtn?.addEventListener("click", async () => {
       cbqdResponses: cbqdResponses
     };
 
-    await addDoc(photosCol, {
+    await setDoc(doc(db, "photos", `${sessionId}_MT1_AUTOEXP`), {
       ...commonMeta,
       taskId: "MT1_AUTOEXP",
       dataUrl: mt1.dataUrl,
@@ -2073,7 +2120,7 @@ submitAllBtn?.addEventListener("click", async () => {
       deepAI: mt1.deepAI
     });
 
-    await addDoc(photosCol, {
+    await setDoc(doc(db, "photos", `${sessionId}_MT2_ESCOLAR`), {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
       dataUrl: mt2.dataUrl,
@@ -2085,7 +2132,7 @@ submitAllBtn?.addEventListener("click", async () => {
       deepAI: mt2.deepAI
     });
 
-    await addDoc(photosCol, {
+    await setDoc(doc(db, "photos", `${sessionId}_MT3_TRANSFORM`), {
       ...commonMeta,
       taskId: "MT3_TRANSFORM",
       dataUrl: mt3.dataUrl,
@@ -2107,8 +2154,12 @@ submitAllBtn?.addEventListener("click", async () => {
       submitAllBtn.textContent = "Enviado ✓";
     }
 
+    // También bloquea \"Atrás\" en el último paso para evitar reenvíos accidentales
+    if (wizardBack5) wizardBack5.disabled = true;
+
     // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
     clearParticipantId();
+    clearCurrentSessionCache();
     microtaskAiCache = {};
 
   } catch (err) {
