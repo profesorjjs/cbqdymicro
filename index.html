@@ -183,7 +183,7 @@
         </form>
       </section>
 
-      <section class="wizard-step hidden" data-step="2">
+      <section class="wizard-step" data-step="2">
         <h3>2) Cuestionario CBQD</h3>
         <p class="cbqd-intro">
           A continuación, encontrarás algunas preguntas referidas a tu creatividad digital. Lee atentamente cada una de las siguientes preguntas y rodea con un círculo la respuesta que más se aproxima a tu situación.
@@ -205,12 +205,7 @@
             <td>4 o más veces</td>
           </tr>
         </table>
-
-        <div id="cbqd-disabled" class="message note hidden">
-          El cuestionario CBQD está desactivado en este momento. Puedes continuar directamente con las microtareas.
-        </div>
-
-        <div id="cbqd-warning" class="message error hidden">
+<div id="cbqd-warning" class="message error hidden">
           El CBQD está activado, pero aún no se han configurado ítems en el panel de investigación.
         </div>
 
@@ -261,8 +256,16 @@
       </section>
 
       <section class="wizard-step hidden" data-step="4">
-        <h3>4) Microtarea 2 — Reinterpretación creativa escolar</h3>
-        <p class="note">Fotografía un objeto cotidiano y escribe un texto breve (máximo 280 caracteres) reinterpretándolo en clave escolar (científica, histórica o social) de forma creativa.</p>
+        <h3>4) Tarea 2 — Fotografía creativa del centro educativo</h3>
+        <p class="note">
+          Haz una sola foto dentro del centro educativo (o en su entorno inmediato).<br>
+          Elige un objeto, un espacio o una situación cotidiana (por ejemplo, un aula, un pasillo, una pizarra, una silla, una mesa, un material de clase…).<br>
+          Tu objetivo es mostrarlo de una forma diferente a la habitual, como si quisieras darle otro significado o contar algo con la imagen.<br>
+          Puedes jugar con el encuadre, el punto de vista, la luz o la idea que transmite la foto.<br>
+          No escribas ningún texto ni añadas explicaciones.<br>
+          No uses filtros ni ediciones complejas.<br>
+          La foto debe hablar por sí sola.
+        </p>
 
         <form id="task2-form">
           <div class="form-group">
@@ -282,12 +285,6 @@
             <p><strong>IA local avanzada (composición):</strong> <span id="task2-ai-local">–</span></p>
             <p><strong>IA profunda (modelo externo):</strong> <span id="task2-ai-deep">–</span></p>
             <p id="task2-ai-deep-expl" class="note"></p>
-          </div>
-
-          <div class="form-group">
-            <label for="task2-text">Texto (≤ 280 caracteres):</label>
-            <textarea id="task2-text" rows="3" maxlength="280" required></textarea>
-            <div class="charline"><span id="task2-count">0</span>/280</div>
           </div>
 
           <div class="wizard-nav">
@@ -400,17 +397,8 @@
         <p class="note">Estos centros aparecerán en el desplegable del alumnado cuando la opción esté activada.</p>
       </div>
 
-      
       <h3>Cuestionario CBQD</h3>
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="cbqd-enabled-toggle">
-          Activar el cuestionario CBQD en la participación del alumnado
-        </label>
-        <p class="note">Si lo desactivas, el alumnado realizará únicamente las microtareas.</p>
-      </div>
-
-      <div class="form-group">
+<div class="form-group">
         <label for="cbqd-items-textarea">Ítems CBQD (uno por línea, formato DOMINIO|Ítem):</label>
         <textarea id="cbqd-items-textarea" rows="7"
           placeholder="AUTOEXP|Publico contenidos creativos que expresan mi forma de ser...&#10;ESCOLAR|Creo materiales digitales para tareas del instituto...&#10;PROD|Transformo o edito imágenes para crear algo nuevo..."></textarea>

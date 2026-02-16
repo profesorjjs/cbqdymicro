@@ -11,6 +11,7 @@ import {
   where,
   doc,
   getDoc,
+  getDocFromServer,
   setDoc,
   updateDoc,
   deleteDoc
@@ -121,7 +122,7 @@ let globalConfig = {
   deepAI: DEEP_AI_CONFIG,
 
   // CBQD
-  cbqdEnabled: DEFAULT_CBQD_ENABLED,
+  cbqdEnabled: true,
   cbqdItems: DEFAULT_CBQD_ITEMS
 };
 
@@ -135,7 +136,7 @@ async function ensureConfigLoaded() {
   if (_configLoadPromise) return _configLoadPromise;
 
   _configLoadPromise = (async () => {
-    _configOk = await loadGlobalConfig();
+    _configOk = await loadGlobalConfig(true);
     _configLoaded = true;
     return _configOk;
   })();
@@ -178,7 +179,6 @@ const aiEdgeDensityEnabled = document.getElementById("ai-edgedensity-enabled");
 const aiEdgeDensityWeight = document.getElementById("ai-edgedensity-weight");
 const saveAiConfigButton = document.getElementById("save-ai-config-button");
 // CBQD: controles en Admin
-const cbqdEnabledToggle = document.getElementById("cbqd-enabled-toggle");
 const cbqdItemsTextarea = document.getElementById("cbqd-items-textarea");
 const saveCbqdItemsButton = document.getElementById("save-cbqd-items-button");
 
@@ -318,11 +318,7 @@ function applyConfigToAdmin() {
     adminPasswordInput.value = auth.adminPassword || "";
   }
 
-
   // CBQD
-  if (cbqdEnabledToggle) {
-    cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
-  }
   if (cbqdItemsTextarea) {
     cbqdItemsTextarea.value = (globalConfig.cbqdItems || []).map(it => `${it.domain || "GENERAL"}|${it.text || ""}`.trim()).join("\n");
   }
@@ -441,9 +437,21 @@ function mergeDeepAIConfig(dataDeep) {
   return base;
 }
 
-async function loadGlobalConfig() {
+// Carga configuración desde Firestore.
+// Si forceServer=true, intentará evitar valores obsoletos usando lectura desde servidor.
+async function loadGlobalConfig(forceServer = false) {
   try {
-    const snap = await getDoc(configDocRef);
+    let snap;
+    if (forceServer) {
+      try {
+        snap = await getDocFromServer(configDocRef);
+      } catch (e) {
+        // Si no hay red / el SDK no puede ir al servidor, cae a lectura normal.
+        snap = await getDoc(configDocRef);
+      }
+    } else {
+      snap = await getDoc(configDocRef);
+    }
     if (snap.exists()) {
       const data = snap.data();
       globalConfig.askCenter = !!data.askCenter;
@@ -459,7 +467,7 @@ async function loadGlobalConfig() {
       globalConfig.aiConfig = mergeAiConfig(data.aiConfig);
       globalConfig.authConfig = mergeAuthConfig(data.authConfig);
       globalConfig.deepAI = mergeDeepAIConfig(data.deepAI);
-      globalConfig.cbqdEnabled = (data.cbqdEnabled !== undefined) ? !!data.cbqdEnabled : DEFAULT_CBQD_ENABLED;
+      globalConfig.cbqdEnabled = true;
       globalConfig.cbqdItems = Array.isArray(data.cbqdItems) ? data.cbqdItems : DEFAULT_CBQD_ITEMS;
 
       // Guarda una copia utilizable de contraseñas para iOS/Safari (si más tarde Firestore falla)
@@ -471,7 +479,7 @@ async function loadGlobalConfig() {
       globalConfig.aiConfig = DEFAULT_AI_CONFIG;
       globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
       globalConfig.deepAI = DEEP_AI_CONFIG;
-      globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+      globalConfig.cbqdEnabled = true;
       globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
 
       saveAuthCache(globalConfig.authConfig);
@@ -484,7 +492,7 @@ async function loadGlobalConfig() {
     globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
     globalConfig.aiConfig = DEFAULT_AI_CONFIG;
     globalConfig.deepAI = DEEP_AI_CONFIG;
-    globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+    globalConfig.cbqdEnabled = true;
     globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
 
     // En iOS/Safari puede fallar puntualmente Firestore: intenta usar la última config válida
@@ -1176,10 +1184,17 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
+  // 1) Asegura que existe configuración mínima (y cache de auth si Firestore falla)
   const ok = await ensureConfigLoaded();
-  // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
-  if (!ok) {
-    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+  // 2) Intenta SIEMPRE refrescar la configuración real desde Firestore.
+  //    Esto es clave para que cambios recientes (p. ej., cbqdEnabled) se reflejen al entrar como alumnado.
+  try {
+    await loadGlobalConfig();
+  } catch (err) {
+    // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
+    if (!ok) {
+      try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+    }
   }
   const role = document.getElementById("role-select").value;
   const password = normalizePwd(document.getElementById("access-password").value);
@@ -1205,6 +1220,9 @@ document.getElementById("login-button").addEventListener("click", async () => {
   loginSection.classList.add("hidden");
 
   if (role === "uploader") {
+    // Vuelve a refrescar por si el panel admin ha cambiado algo justo ahora (CBQD, centros, etc.)
+    try { await loadGlobalConfig(true); } catch (_) {}
+    applyConfigToUpload();
     resetUploaderState({ newParticipant: true });
     showSection("upload");
   } else if (role === "expert") {
@@ -1215,36 +1233,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
 });
 
 
-// ----- CBQD (ADMIN): activar/desactivar + configurar ítems -----
-if (cbqdEnabledToggle) {
-  cbqdEnabledToggle.addEventListener("change", async () => {
-    globalConfig.cbqdEnabled = !!cbqdEnabledToggle.checked;
-    try {
-      const snap = await getDoc(configDocRef);
-      const payload = { cbqdEnabled: globalConfig.cbqdEnabled };
-      if (!snap.exists()) {
-        // crear doc completo con defaults mínimos
-        await setDoc(configDocRef, {
-          askCenter: globalConfig.askCenter,
-          centers: globalConfig.centers || [],
-          ratingItems: globalConfig.ratingItems || DEFAULT_RATING_ITEMS,
-          aiConfig: globalConfig.aiConfig || DEFAULT_AI_CONFIG,
-          authConfig: globalConfig.authConfig || DEFAULT_AUTH_CONFIG,
-          deepAI: globalConfig.deepAI || DEEP_AI_CONFIG,
-          cbqdEnabled: globalConfig.cbqdEnabled,
-          cbqdItems: globalConfig.cbqdItems || DEFAULT_CBQD_ITEMS
-        });
-      } else {
-        await updateDoc(configDocRef, payload);
-      }
-    } catch (err) {
-      console.error("Error guardando cbqdEnabled:", err);
-      alert("No se ha podido guardar el estado del CBQD.");
-      // revertir visualmente
-      cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
-    }
-  });
-}
+// ----- CBQD (ADMIN): configurar ítems -----
 
 if (saveCbqdItemsButton) {
   saveCbqdItemsButton.addEventListener("click", async () => {
@@ -1281,6 +1270,9 @@ if (saveCbqdItemsButton) {
         await updateDoc(configDocRef, payload);
       }
 
+      await loadGlobalConfig(true);
+      applyConfigToAdmin();
+
       alert("CBQD actualizado.");
     } catch (err) {
       console.error("Error guardando CBQD:", err);
@@ -1310,6 +1302,17 @@ const cbqdWarningBox = document.getElementById("cbqd-warning");
 const cbqdItemsHost = document.getElementById("cbqd-items");
 const cbqdScoreBox = document.getElementById("cbqd-scorebox");
 
+// Paso 2 (CBQD) en el wizard: lo mostramos/ocultamos según configuración.
+// El wizard controla la visibilidad real; esto evita que el paso quede “anclado”
+// por estados previos o por cambios en caliente desde el panel admin.
+const cbqdStepEl = document.querySelector('.wizard-step[data-step="2"]');
+
+function syncCbqdStepVisibility() {
+  if (!cbqdStepEl) return;
+  if (globalConfig.cbqdEnabled) cbqdStepEl.classList.remove("hidden");
+  else cbqdStepEl.classList.add("hidden");
+}
+
 function computeWizardOrder() {
   // Siempre existen los pasos 1..5 en el DOM, pero el paso 2 puede saltarse.
   const order = [1];
@@ -1322,6 +1325,9 @@ let wizardOrder = computeWizardOrder();
 let wizardIdx = 0;
 
 function showWizardStepByIndex(idx) {
+  // Asegura que el DOM refleja el estado del CBQD antes de computar el orden.
+  syncCbqdStepVisibility();
+
   wizardOrder = computeWizardOrder();
   wizardIdx = Math.min(Math.max(idx, 0), wizardOrder.length - 1);
 
@@ -1773,9 +1779,14 @@ wireMicrotaskAi("MT2_ESCOLAR", "task2-photo", "task2");
 wireMicrotaskAi("MT3_TRANSFORM", "task3-output", "task3");
 
 // Navegación (validando por pasos)
-wizardNext?.addEventListener("click", () => {
+wizardNext?.addEventListener("click", async () => {
   const step1Form = document.getElementById("step1-form");
   if (step1Form && !step1Form.reportValidity()) return;
+
+  // Refresca la config justo antes de calcular el siguiente paso.
+  // Así, si el CBQD se activa/desactiva en admin, el alumnado ve el paso 2 al instante.
+  try { await loadGlobalConfig(true); } catch (_) {}
+
   showWizardStepByIndex(wizardIdx + 1);
 });
 
