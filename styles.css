@@ -208,25 +208,26 @@ button.secondary:hover {
 }
 
 .back-button {
-  background: #e8eaf6;
-  color: #1a237e;
-  border: 1px solid #c5cae9;
-  padding: 0.45rem 0.9rem;
-  border-radius: 999px;
-  cursor: pointer;
+  background: #f4f6ff;
+  border: 1px solid #d7dbff;
+  color: #283593;
+  font-size: 0.95rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  cursor: pointer;
   text-decoration: none;
+  padding: 0.55rem 0.85rem;
+  border-radius: 12px;
+  line-height: 1;
 }
 
 .back-button:hover {
-  background: #dde1ff;
-  color: #1a237e;
+  filter: brightness(0.98);
 }
 
 .back-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+  filter: none;
 }
 
 /* ----- Panel admin: gráficos y listado de fotos ----- */
@@ -325,6 +326,19 @@ button.secondary:hover {
 
 .small-input {
   width: 80px;
+}
+
+/* ----- Panel admin: botones de exportación ----- */
+
+.admin-export-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.admin-export-buttons button {
+  min-width: 220px;
 }
 
 .center-cell {

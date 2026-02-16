@@ -301,10 +301,10 @@ function applyConfigToAdmin() {
     askCenterToggle.checked = !!globalConfig.askCenter;
   }
   if (centersTextarea) {
-    centersTextarea.value = (globalConfig.centers || []).join("\r\n");
+    centersTextarea.value = (globalConfig.centers || []).join("\n");
   }
   if (ratingItemsTextarea) {
-    ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\r\n");
+    ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\n");
   }
 
   // Claves de acceso
@@ -325,7 +325,7 @@ function applyConfigToAdmin() {
     cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
   }
   if (cbqdItemsTextarea) {
-    cbqdItemsTextarea.value = (globalConfig.cbqdItems || []).map(it => `${it.domain || "GENERAL"}|${it.text || ""}`.trim()).join("\r\n");
+    cbqdItemsTextarea.value = (globalConfig.cbqdItems || []).map(it => `${it.domain || "GENERAL"}|${it.text || ""}`.trim()).join("\n");
   }
 
   applyAiConfigToAdmin();
@@ -1336,6 +1336,8 @@ const wizardBack3 = document.getElementById("wizard-back-3");
 const wizardBack4 = document.getElementById("wizard-back-4");
 const wizardBack5 = document.getElementById("wizard-back-5");
 const submitAllBtn = document.getElementById("submit-all");
+// Texto por defecto del botón de envío (para restaurarlo entre alumnos)
+const SUBMIT_ALL_DEFAULT_LABEL = submitAllBtn?.textContent || "Enviar todo";
 
 const cbqdDisabledBox = document.getElementById("cbqd-disabled");
 const cbqdWarningBox = document.getElementById("cbqd-warning");
@@ -1425,18 +1427,6 @@ function resetUploaderState({ newParticipant = true } = {}) {
     if (f && typeof f.reset === "function") f.reset();
   });
 
-  // Rehabilitar botones del último paso (por si el alumno anterior ya envió)
-  const finalBackBtn = wizardBack5 || document.getElementById("wizard-back-5");
-  if (submitAllBtn) {
-    submitAllBtn.disabled = false;
-    submitAllBtn.textContent = submitAllBtn.dataset.originalText || "Enviar todo";
-  }
-  if (finalBackBtn) {
-    finalBackBtn.disabled = false;
-    finalBackBtn.textContent = finalBackBtn.dataset.originalText || finalBackBtn.textContent || "Atrás";
-  }
-
-
   // Ocultar bloques condicionales
   if (typeof bachWrapper !== "undefined" && bachWrapper) bachWrapper.style.display = "none";
   if (typeof centerWrapper !== "undefined" && centerWrapper) centerWrapper.style.display = globalConfig.askCenter ? "block" : "none";
@@ -1477,6 +1467,13 @@ function resetUploaderState({ newParticipant = true } = {}) {
     showWizardStepByIndex(0);
   }
 
+  // Rehabilita el botón de envío para el siguiente alumno
+  if (submitAllBtn) {
+    submitAllBtn.disabled = false;
+    submitAllBtn.removeAttribute("aria-busy");
+    submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
+  }
+
   // Nuevo participante (evita arrastrar identificación entre alumnos)
   if (newParticipant) clearParticipantId();
 }
@@ -1503,7 +1500,7 @@ function simpleHash(str) {
 
 function computeCbqdInstrumentVersion(cbqdItems) {
   const items = Array.isArray(cbqdItems) ? cbqdItems : [];
-  const payload = items.map(it => `${it.id}|${it.domain || "GENERAL"}|${it.text || ""}`).join("\r\n");
+  const payload = items.map(it => `${it.id}|${it.domain || "GENERAL"}|${it.text || ""}`).join("\n");
   return `CBQD_${items.length}_${simpleHash(payload)}`;
 }
 
@@ -1871,6 +1868,9 @@ submitAllBtn?.addEventListener("click", async () => {
     msg.className = "message";
   }
 
+  // Evita envíos repetidos (doble click o reintentos tras envío correcto)
+  if (submitAllBtn?.disabled) return;
+
   try {
     await ensureConfigLoaded();
     const step1Form = document.getElementById("step1-form");
@@ -1886,6 +1886,13 @@ submitAllBtn?.addEventListener("click", async () => {
     // CBQD (si procede)
     // Si CBQD está activo, bloquea el envío hasta completarlo.
     if (!validateCbqdComplete({ focusFirstMissing: true })) return;
+
+    // A partir de aquí ya intentamos enviar: bloquea el botón para evitar dobles envíos.
+    if (submitAllBtn) {
+      submitAllBtn.disabled = true;
+      submitAllBtn.setAttribute("aria-busy", "true");
+      submitAllBtn.textContent = "Enviando…";
+    }
 
     const participantId = ensureParticipantId();
     const sessionId = newSessionId();
@@ -1920,24 +1927,16 @@ submitAllBtn?.addEventListener("click", async () => {
     const f1 = document.getElementById("task1-photo")?.files?.[0];
     const f2 = document.getElementById("task2-photo")?.files?.[0];
     const f3 = document.getElementById("task3-output")?.files?.[0];
+    // Nota: en versiones anteriores la microtarea 2 incluía un campo de texto (≤ 280 caracteres).
+    // Actualmente NO es obligatorio y puede incluso no existir en el HTML.
     const task2Text = (document.getElementById("task2-text")?.value || "").trim();
 
     if (!f1 || !f2 || !f3) throw new Error("Faltan archivos de alguna microtarea.");
-    if (task2Text && task2Text.length > 280) throw new Error("El texto de la microtarea 2 debe tener como máximo 280 caracteres.");
 
-    // Evita envíos duplicados por doble clic o por pulsaciones repetidas
-    // (se reactivará al reiniciar el estado para el siguiente alumno).
-    const finalBackBtn = wizardBack5 || document.getElementById("wizard-back-5");
-    if (submitAllBtn) {
-      if (!submitAllBtn.dataset.originalText) submitAllBtn.dataset.originalText = submitAllBtn.textContent || "Enviar todo";
-      submitAllBtn.disabled = true;
-      submitAllBtn.textContent = "Enviando…";
+    // Microtarea 2: el texto es opcional (si existe), pero si se usa debe respetar el límite.
+    if (task2Text.length > 280) {
+      throw new Error("El texto de la microtarea 2 no puede superar los 280 caracteres.");
     }
-    if (finalBackBtn) {
-      if (!finalBackBtn.dataset.originalText) finalBackBtn.dataset.originalText = finalBackBtn.textContent || "Atrás";
-      finalBackBtn.disabled = true;
-    }
-
 
     // --- Preparar imágenes y análisis IA (por microtarea) ---
     // Reutiliza el cache si ya se analizó en la vista previa, pero vuelve a calcular si falta.
@@ -2052,7 +2051,8 @@ submitAllBtn?.addEventListener("click", async () => {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
       dataUrl: mt2.dataUrl,
-      text280: task2Text || null,
+      // Guardamos el texto si existe y se ha rellenado; si no, dejamos null para evitar basura en exportaciones.
+      text280: task2Text ? task2Text : null,
       aiFeatures: mt2.aiFeatures,
       aiScore: mt2.aiScore,
       localAdvanced: mt2.localAdvanced,
@@ -2072,13 +2072,13 @@ submitAllBtn?.addEventListener("click", async () => {
     if (msg) {
       msg.className = "message success";
       msg.textContent = "¡Enviado! Muchas gracias por participar.";
+    }
+
+    // Deja el botón bloqueado para este alumno (ya ha enviado)
     if (submitAllBtn) {
       submitAllBtn.disabled = true;
+      submitAllBtn.removeAttribute("aria-busy");
       submitAllBtn.textContent = "Enviado ✓";
-    }
-    const finalBackBtnOk = wizardBack5 || document.getElementById("wizard-back-5");
-    if (finalBackBtnOk) finalBackBtnOk.disabled = true;
-
     }
 
     // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
@@ -2086,20 +2086,17 @@ submitAllBtn?.addEventListener("click", async () => {
     microtaskAiCache = {};
 
   } catch (err) {
-    // Si falla el envío, permite reintentar
-    const finalBackBtnErr = wizardBack5 || document.getElementById("wizard-back-5");
-    if (submitAllBtn) {
-      submitAllBtn.disabled = false;
-      submitAllBtn.textContent = submitAllBtn.dataset.originalText || "Enviar todo";
-    }
-    if (finalBackBtnErr) {
-      finalBackBtnErr.disabled = false;
-    }
-
     console.error(err);
     if (msg) {
       msg.className = "message error";
       msg.textContent = err?.message || "Ha ocurrido un error al enviar.";
+    }
+
+    // Si ha fallado el envío, vuelve a habilitar el botón para reintentar
+    if (submitAllBtn) {
+      submitAllBtn.disabled = false;
+      submitAllBtn.removeAttribute("aria-busy");
+      submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
     }
   }
 });
@@ -2651,6 +2648,37 @@ if (loadPhotosButton) {
 }
 
 // Exportar CSV (formato largo): 1 fila por (foto × experto), incluyendo CBQD + demografía vinculada.
+function buildCsvContent(rows, delimiter = ";") {
+  // CSV compatible con Excel (España): separador ';' y BOM UTF-8 para caracteres como "Sí".
+  const lines = rows.map(row =>
+    row
+      .map(value => {
+        const str = String(value ?? "");
+        if (str.includes(delimiter) || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      })
+      .join(delimiter)
+  );
+
+  // CRLF para que Excel no "rompa" filas en Windows.
+  return "\ufeff" + lines.join("\r\n");
+}
+
+function triggerCsvDownload(csvContent, filenameBase) {
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const now = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filenameBase}_${now}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 document.getElementById("export-csv-button").addEventListener("click", async () => {
   try {
     const [photosSnap, ratingsSnap, sessionsSnap] = await Promise.all([
@@ -2926,31 +2954,225 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       });
     }
 
-    const csvContent = rows.map(row =>
-      row.map(value => {
-        const str = String(value ?? "");
-        if (str.includes(";") || str.includes("\"") || str.includes("\n") || str.includes("\r")) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      }).join(";")
-    ).join("\r\n");
-
-    const blob = new Blob(["\ufeff", csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const now = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `creatividad_digital_full_${now}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const csvContent = buildCsvContent(rows, ";");
+    triggerCsvDownload(csvContent, "creatividad_digital_full");
 
     alert("CSV generado y descargado.");
   } catch (err) {
     console.error(err);
     alert("Ha ocurrido un error al generar el CSV.");
+  }
+});
+
+// Exportación "por alumno": 1 fila por participante (sesión) con agregados por tarea.
+document.getElementById("export-csv-students-button")?.addEventListener("click", async () => {
+  try {
+    // Cargamos datos
+    const sessionsSnap = await getDocs(collection(db, "sessions"));
+    const photosSnap = await getDocs(collection(db, "photos"));
+    const ratingsSnap = await getDocs(collection(db, "ratings"));
+
+    const sessions = {};
+    sessionsSnap.forEach(doc => (sessions[doc.id] = doc.data()));
+
+    const photos = {};
+    photosSnap.forEach(doc => (photos[doc.id] = doc.data()));
+
+    const ratingsArr = [];
+    ratingsSnap.forEach(doc => ratingsArr.push({ id: doc.id, ...doc.data() }));
+
+    // Índices
+    const photosBySession = {};
+    Object.entries(photos).forEach(([photoId, p]) => {
+      if (!p?.sessionId) return;
+      (photosBySession[p.sessionId] ||= []).push({ photoId, ...p });
+    });
+
+    const ratingsByPhoto = {};
+    ratingsArr.forEach(r => {
+      if (!r?.photoId) return;
+      (ratingsByPhoto[r.photoId] ||= []).push(r);
+    });
+
+    function mean(arr) {
+      const nums = arr.filter(v => typeof v === "number" && Number.isFinite(v));
+      if (nums.length === 0) return null;
+      return nums.reduce((a, b) => a + b, 0) / nums.length;
+    }
+
+    function sd(arr) {
+      const nums = arr.filter(v => typeof v === "number" && Number.isFinite(v));
+      if (nums.length < 2) return null;
+      const m = mean(nums);
+      const v = nums.reduce((acc, x) => acc + Math.pow(x - m, 2), 0) / (nums.length - 1);
+      return Math.sqrt(v);
+    }
+
+    // Cabecera
+    const header = [
+      "sessionId",
+      "participantId",
+      "createdAt",
+      "gender",
+      "age",
+      "studies",
+      "bachType",
+      "vocation",
+      "studiesFather",
+      "studiesMother",
+      "rep",
+      "fail",
+      "pcsHome",
+      "pcRoom",
+      "pcFrequency",
+      "pcHours",
+      "center",
+      "cbqd_enabled",
+      "cbqd_version",
+      "cbqd_total",
+      "cbqd_answered",
+      "cbqd_missing",
+      // agregados por tarea
+      "task1_photoId",
+      "task1_aiScore",
+      "task1_localAdvancedScore",
+      "task1_deepScore",
+      "task1_puntf_mean",
+      "task1_puntf_sd",
+      "task1_puntf_n",
+      "task2_photoId",
+      "task2_aiScore",
+      "task2_localAdvancedScore",
+      "task2_deepScore",
+      "task2_puntf_mean",
+      "task2_puntf_sd",
+      "task2_puntf_n",
+      "task3_photoId",
+      "task3_aiScore",
+      "task3_localAdvancedScore",
+      "task3_deepScore",
+      "task3_puntf_mean",
+      "task3_puntf_sd",
+      "task3_puntf_n",
+      // global
+      "puntf_mean_overall",
+      "puntf_n_overall"
+    ];
+
+    const rows = [header];
+
+    Object.entries(sessions).forEach(([sessionId, s]) => {
+      const dem = s?.demographics || {};
+      const cbqd = s?.cbqd || {};
+
+      // Fotos por tarea (si hubiese más de una, elegimos la más reciente por createdAt)
+      const sessionPhotos = (photosBySession[sessionId] || []).slice();
+      sessionPhotos.sort((a, b) => {
+        const ta = a.createdAt?.seconds ? a.createdAt.seconds : (a.createdAt || 0);
+        const tb = b.createdAt?.seconds ? b.createdAt.seconds : (b.createdAt || 0);
+        return tb - ta;
+      });
+
+      const byTask = { 1: null, 2: null, 3: null };
+      sessionPhotos.forEach(p => {
+        const t = Number(p.taskId);
+        if (![1, 2, 3].includes(t)) return;
+        if (!byTask[t]) byTask[t] = p;
+      });
+
+      const taskAgg = (t) => {
+        const p = byTask[t];
+        if (!p) return { photoId: "", aiScore: "", localAdvancedScore: "", deepScore: "", puntfMean: "", puntfSd: "", puntfN: "" };
+        const rs = ratingsByPhoto[p.photoId] || [];
+        const puntfs = rs.map(r => (typeof r.puntf === "number" ? r.puntf : null));
+        const m = mean(puntfs);
+        const sdev = sd(puntfs);
+        const n = puntfs.filter(v => typeof v === "number" && Number.isFinite(v)).length;
+        return {
+          photoId: p.photoId,
+          aiScore: p.aiScore ?? "",
+          localAdvancedScore: p.localAdvancedScore ?? "",
+          deepScore: p.deepScore ?? "",
+          puntfMean: m === null ? "" : m.toFixed(2),
+          puntfSd: sdev === null ? "" : sdev.toFixed(2),
+          puntfN: n || ""
+        };
+      };
+
+      const t1 = taskAgg(1);
+      const t2 = taskAgg(2);
+      const t3 = taskAgg(3);
+
+      const overallNums = [t1, t2, t3]
+        .flatMap(t => {
+          const p = t.photoId ? (ratingsByPhoto[t.photoId] || []) : [];
+          return p.map(r => (typeof r.puntf === "number" ? r.puntf : null));
+        })
+        .filter(v => typeof v === "number" && Number.isFinite(v));
+
+      const overallMean = overallNums.length ? (overallNums.reduce((a, b) => a + b, 0) / overallNums.length) : null;
+
+      rows.push([
+        sessionId,
+        s?.participantId || "",
+        s?.createdAt || "",
+
+        dem.gender ?? "",
+        dem.age ?? "",
+        dem.studies ?? "",
+        dem.bachType ?? "",
+        dem.vocation ?? "",
+        dem.studiesFather ?? "",
+        dem.studiesMother ?? "",
+        dem.rep ?? "",
+        dem.fail ?? "",
+        dem.pcsHome ?? "",
+        dem.pcRoom ?? "",
+        dem.pcFrequency ?? "",
+        dem.pcHours ?? "",
+        dem.center ?? "",
+
+        cbqd.enabled ? "1" : "0",
+        cbqd.version ?? "",
+        cbqd.total ?? "",
+        cbqd.answered ?? "",
+        cbqd.missing ?? "",
+
+        t1.photoId,
+        t1.aiScore,
+        t1.localAdvancedScore,
+        t1.deepScore,
+        t1.puntfMean,
+        t1.puntfSd,
+        t1.puntfN,
+
+        t2.photoId,
+        t2.aiScore,
+        t2.localAdvancedScore,
+        t2.deepScore,
+        t2.puntfMean,
+        t2.puntfSd,
+        t2.puntfN,
+
+        t3.photoId,
+        t3.aiScore,
+        t3.localAdvancedScore,
+        t3.deepScore,
+        t3.puntfMean,
+        t3.puntfSd,
+        t3.puntfN,
+
+        overallMean === null ? "" : overallMean.toFixed(2),
+        overallNums.length || ""
+      ]);
+    });
+
+    const csvContent = buildCsvContent(rows, ";");
+    triggerCsvDownload(csvContent, "creatividad_digital_por_alumno");
+    alert("CSV (por alumno) generado y descargado.");
+  } catch (err) {
+    console.error(err);
+    alert("Ha ocurrido un error al generar el CSV (por alumno).\n\n" + (err?.message || ""));
   }
 });
 
