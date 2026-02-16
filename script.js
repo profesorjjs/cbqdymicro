@@ -2666,6 +2666,23 @@ function buildCsvContent(rows, delimiter = ";") {
   return "\ufeff" + lines.join("\r\n");
 }
 
+
+// Código corto y estable para identificar alumnado en CSV (evita IDs largos de Firestore).
+// Determinista: mismo participantId -> mismo student_code.
+function makeStudentCode(id, length = 8) {
+  const s = String(id ?? "");
+  if (!s) return "";
+  // FNV-1a 32-bit (rápido y suficiente para códigos cortos)
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  // Base36 y padding para longitud fija
+  const code = h.toString(36).toUpperCase();
+  return code.padStart(length, "0").slice(-length);
+}
+
 function triggerCsvDownload(csvContent, filenameBase) {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -2738,7 +2755,7 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       // Identificación y estructura
       "fotoId",
       "taskId",
-      "participantId",
+      "student_code",
       "sessionId",
       "submittedAt",
       "createdAt",
@@ -2875,7 +2892,7 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       const base = [
         photoId,
         p.taskId || "",
-        p.participantId || s?.participantId || "",
+        makeStudentCode(p.participantId || s?.participantId || ""),
         p.sessionId || "",
         p.submittedAt || s?.submittedAt || "",
         p.createdAt || "",
@@ -2981,39 +2998,6 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
     const ratingsArr = [];
     ratingsSnap.forEach(doc => ratingsArr.push({ id: doc.id, ...doc.data() }));
 
-    // --- Universo CBQD (dominios + ítems) para columnas estables ---
-    const cbqdItemIds = new Set();
-    const cbqdDomains = new Set();
-
-    Object.values(sessions).forEach(s => {
-      const c = s?.cbqd || {};
-      const items = c.itemsUsed || c.items || [];
-      items.forEach(it => {
-        if (it?.id) cbqdItemIds.add(it.id);
-        const dom = (it?.domain || "GENERAL").trim() || "GENERAL";
-        cbqdDomains.add(dom);
-      });
-      (c.responses || []).forEach(r => {
-        if (r?.id) cbqdItemIds.add(r.id);
-        const dom = (r?.domain || "GENERAL").trim() || "GENERAL";
-        cbqdDomains.add(dom);
-      });
-      const sub = (c.scores && typeof c.scores === "object") ? (c.scores.subscales || {}) : (c.subscales || {});
-      Object.keys(sub || {}).forEach(dom => cbqdDomains.add((dom || "GENERAL").trim() || "GENERAL"));
-    });
-
-    // Fallback: si aún no hay sesiones con CBQD, usamos la configuración actual
-    if (cbqdItemIds.size === 0) {
-      (globalConfig.cbqdItems || []).forEach(it => {
-        if (it?.id) cbqdItemIds.add(it.id);
-        const dom = (it?.domain || "GENERAL").trim() || "GENERAL";
-        cbqdDomains.add(dom);
-      });
-    }
-
-    const cbqdItemList = Array.from(cbqdItemIds).sort();
-    const cbqdDomainList = Array.from(cbqdDomains).sort();
-
     // Índices
     const photosBySession = {};
     Object.entries(photos).forEach(([photoId, p]) => {
@@ -3041,63 +3025,11 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       return Math.sqrt(v);
     }
 
-    function normalizeCbqdFromSession(s) {
-      const c = s?.cbqd || {};
-      const enabled = !!c.enabled;
-
-      const version = c.instrumentVersion || c.version || "";
-      const responses = Array.isArray(c.responses) ? c.responses : [];
-
-      // Map por ítem
-      const map = {};
-      responses.forEach(r => {
-        if (r?.id) map[r.id] = Number.isFinite(r.value) ? r.value : "";
-      });
-
-      // Scores: preferimos scores.total/subscales si existen, si no recomputamos
-      let total = null;
-      let subscales = {};
-      let answered = 0;
-      let missing = 0;
-
-      if (c.scores && typeof c.scores === "object") {
-        total = c.scores.total ?? null;
-        subscales = c.scores.subscales || {};
-        answered = c.scores.answered ?? 0;
-        missing = c.scores.missing ?? 0;
-      } else if (typeof c.total === "number" || c.subscales) {
-        total = (typeof c.total === "number") ? c.total : null;
-        subscales = c.subscales || {};
-        const sc = computeCbqdScores(responses);
-        answered = sc.answered;
-        missing = sc.missing;
-        if (total === null) total = sc.total;
-        if (!subscales || Object.keys(subscales).length === 0) subscales = sc.subscales;
-      } else {
-        const sc = computeCbqdScores(responses);
-        total = sc.total;
-        subscales = sc.subscales;
-        answered = sc.answered;
-        missing = sc.missing;
-      }
-
-      // Normalizamos claves de dominios
-      const normSub = {};
-      Object.entries(subscales || {}).forEach(([k, v]) => {
-        const dom = (k || "GENERAL").trim() || "GENERAL";
-        normSub[dom] = v;
-      });
-
-      return { enabled, version, total, subscales: normSub, answered, missing, map };
-    }
-
     // Cabecera
     const header = [
       "sessionId",
-      "participantId",
+      "student_code",
       "createdAt",
-
-      // Demografía
       "gender",
       "age",
       "studies",
@@ -3112,21 +3044,12 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       "pcFrequency",
       "pcHours",
       "center",
-
-      // CBQD básico
       "cbqd_enabled",
       "cbqd_version",
       "cbqd_total",
       "cbqd_answered",
-      "cbqd_missing"
-    ];
-
-    // CBQD por dominios e ítems (para análisis fino)
-    cbqdDomainList.forEach(dom => header.push(`cbqd_dom_${dom}`));
-    cbqdItemList.forEach(id => header.push(`cbqd_item_${id}`));
-
-    // Agregados por tarea
-    header.push(
+      "cbqd_missing",
+      // agregados por tarea
       "task1_photoId",
       "task1_aiScore",
       "task1_localAdvancedScore",
@@ -3134,7 +3057,6 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       "task1_puntf_mean",
       "task1_puntf_sd",
       "task1_puntf_n",
-
       "task2_photoId",
       "task2_aiScore",
       "task2_localAdvancedScore",
@@ -3142,7 +3064,6 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       "task2_puntf_mean",
       "task2_puntf_sd",
       "task2_puntf_n",
-
       "task3_photoId",
       "task3_aiScore",
       "task3_localAdvancedScore",
@@ -3150,17 +3071,16 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       "task3_puntf_mean",
       "task3_puntf_sd",
       "task3_puntf_n",
-
-      // Global
+      // global
       "puntf_mean_overall",
       "puntf_n_overall"
-    );
+    ];
 
     const rows = [header];
 
     Object.entries(sessions).forEach(([sessionId, s]) => {
       const dem = s?.demographics || {};
-      const cbqd = normalizeCbqdFromSession(s);
+      const cbqd = s?.cbqd || {};
 
       // Fotos por tarea (si hubiese más de una, elegimos la más reciente por createdAt)
       const sessionPhotos = (photosBySession[sessionId] || []).slice();
@@ -3189,7 +3109,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
           photoId: p.photoId,
           aiScore: p.aiScore ?? "",
           localAdvancedScore: p.localAdvancedScore ?? "",
-          deepScore: (p.deepAI?.deepScore ?? p.deepScore ?? ""),
+          deepScore: p.deepScore ?? "",
           puntfMean: m === null ? "" : m.toFixed(2),
           puntfSd: sdev === null ? "" : sdev.toFixed(2),
           puntfN: n || ""
@@ -3202,16 +3122,16 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
 
       const overallNums = [t1, t2, t3]
         .flatMap(t => {
-          const rs = t.photoId ? (ratingsByPhoto[t.photoId] || []) : [];
-          return rs.map(r => (typeof r.puntf === "number" ? r.puntf : null));
+          const p = t.photoId ? (ratingsByPhoto[t.photoId] || []) : [];
+          return p.map(r => (typeof r.puntf === "number" ? r.puntf : null));
         })
         .filter(v => typeof v === "number" && Number.isFinite(v));
 
       const overallMean = overallNums.length ? (overallNums.reduce((a, b) => a + b, 0) / overallNums.length) : null;
 
-      const row = [
+      rows.push([
         sessionId,
-        s?.participantId || "",
+        makeStudentCode(s?.participantId || sessionId),
         s?.createdAt || "",
 
         dem.gender ?? "",
@@ -3233,14 +3153,8 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         cbqd.version ?? "",
         cbqd.total ?? "",
         cbqd.answered ?? "",
-        cbqd.missing ?? ""
-      ];
+        cbqd.missing ?? "",
 
-      // CBQD dominios e ítems
-      cbqdDomainList.forEach(dom => row.push(cbqd.subscales?.[dom] ?? ""));
-      cbqdItemList.forEach(id => row.push(cbqd.map?.[id] ?? ""));
-
-      row.push(
         t1.photoId,
         t1.aiScore,
         t1.localAdvancedScore,
@@ -3267,9 +3181,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
 
         overallMean === null ? "" : overallMean.toFixed(2),
         overallNums.length || ""
-      );
-
-      rows.push(row);
+      ]);
     });
 
     const csvContent = buildCsvContent(rows, ";");
@@ -3277,9 +3189,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
     alert("CSV (por alumno) generado y descargado.");
   } catch (err) {
     console.error(err);
-    alert("Ha ocurrido un error al generar el CSV (por alumno).
-
-" + (err?.message || ""));
+    alert("Ha ocurrido un error al generar el CSV (por alumno).\n\n" + (err?.message || ""));
   }
 });
 
