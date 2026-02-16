@@ -2061,6 +2061,7 @@ submitAllBtn?.addEventListener("click", async () => {
       sessionId,
       participantId,
       submittedAt,
+      createdAt: submittedAt,
       demographics,
       cbqd: {
         enabled: cbqdEnabledNow,
@@ -2113,6 +2114,7 @@ submitAllBtn?.addEventListener("click", async () => {
     await setDoc(doc(db, "photos", `${sessionId}_MT1_AUTOEXP`), {
       ...commonMeta,
       taskId: "MT1_AUTOEXP",
+      createdAt: submittedAt,
       dataUrl: mt1.dataUrl,
       aiFeatures: mt1.aiFeatures,
       aiScore: mt1.aiScore,
@@ -2123,6 +2125,7 @@ submitAllBtn?.addEventListener("click", async () => {
     await setDoc(doc(db, "photos", `${sessionId}_MT2_ESCOLAR`), {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
+      createdAt: submittedAt,
       dataUrl: mt2.dataUrl,
       // Guardamos el texto si existe y se ha rellenado; si no, dejamos null para evitar basura en exportaciones.
       text280: task2Text ? task2Text : null,
@@ -2135,6 +2138,7 @@ submitAllBtn?.addEventListener("click", async () => {
     await setDoc(doc(db, "photos", `${sessionId}_MT3_TRANSFORM`), {
       ...commonMeta,
       taskId: "MT3_TRANSFORM",
+      createdAt: submittedAt,
       dataUrl: mt3.dataUrl,
       aiFeatures: mt3.aiFeatures,
       aiScore: mt3.aiScore,
@@ -3119,7 +3123,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
     const header = [
       "session_code",
       "student_code",
-      "createdAt",      "gender",
+      "submittedAt",      "gender",
       "age",
       "studies",
       "bachType",
@@ -3207,8 +3211,8 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
           photoCode: makePhotoCode(p.photoId),
           photoIdForLookup: p.photoId,
           aiScore: p.aiScore ?? "",
-          localAdvancedScore: p.localAdvancedScore ?? "",
-          deepScore: p.deepScore ?? "",
+          localAdvancedScore: p.localAdvanced?.localAdvancedScore ?? "",
+          deepScore: p.deepAI?.deepScore ?? "",
           puntfMean: m === null ? "" : m.toFixed(2),
           puntfSd: sdev === null ? "" : sdev.toFixed(2),
           puntfN: n || ""
@@ -3231,7 +3235,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       rows.push([
         makeSessionCode(sessionId),
         makeStudentCode(s?.participantId || sessionId),
-        s?.createdAt || "",
+        s?.submittedAt || "",
         dem.gender ?? "",
         dem.age ?? "",
         dem.studies ?? "",
