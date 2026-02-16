@@ -1908,10 +1908,16 @@ submitAllBtn?.addEventListener("click", async () => {
     const f1 = document.getElementById("task1-photo")?.files?.[0];
     const f2 = document.getElementById("task2-photo")?.files?.[0];
     const f3 = document.getElementById("task3-output")?.files?.[0];
+    // Nota: en versiones anteriores la microtarea 2 incluía un campo de texto (≤ 280 caracteres).
+    // Actualmente NO es obligatorio y puede incluso no existir en el HTML.
     const task2Text = (document.getElementById("task2-text")?.value || "").trim();
 
     if (!f1 || !f2 || !f3) throw new Error("Faltan archivos de alguna microtarea.");
-    if (!task2Text || task2Text.length > 280) throw new Error("El texto de la microtarea 2 es obligatorio y ≤ 280 caracteres.");
+
+    // Microtarea 2: el texto es opcional (si existe), pero si se usa debe respetar el límite.
+    if (task2Text.length > 280) {
+      throw new Error("El texto de la microtarea 2 no puede superar los 280 caracteres.");
+    }
 
     // --- Preparar imágenes y análisis IA (por microtarea) ---
     // Reutiliza el cache si ya se analizó en la vista previa, pero vuelve a calcular si falta.
@@ -2026,7 +2032,8 @@ submitAllBtn?.addEventListener("click", async () => {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
       dataUrl: mt2.dataUrl,
-      text280: task2Text,
+      // Guardamos el texto si existe y se ha rellenado; si no, dejamos null para evitar basura en exportaciones.
+      text280: task2Text ? task2Text : null,
       aiFeatures: mt2.aiFeatures,
       aiScore: mt2.aiScore,
       localAdvanced: mt2.localAdvanced,
