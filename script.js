@@ -32,8 +32,6 @@ const db = getFirestore(app);
 // Colecciones en Firestore
 const photosCol = collection(db, "photos");
 const ratingsCol = collection(db, "ratings");
-const participantsCol = collection(db, "participants");
-const sessionsCol = collection(db, "sessions");
 const configDocRef = doc(db, "config", "general");
 
 // Ítems de valoración por defecto (expertos)
@@ -69,41 +67,6 @@ const DEFAULT_AUTH_CONFIG = {
   adminPassword: "admin2025"
 };
 
-// Caché local de contraseñas (ayuda en iOS/Safari si Firestore falla puntualmente)
-const LS_AUTH_CACHE_KEY = "authConfigCache_v1";
-
-function normalizePwd(s) {
-  return (s ?? "")
-    .toString()
-    .normalize("NFKC")
-    .replace(/\u00A0/g, " ") // NBSP
-    .trim();
-}
-
-function loadAuthCache() {
-  try {
-    const raw = localStorage.getItem(LS_AUTH_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveAuthCache(authConfig) {
-  try {
-    localStorage.setItem(LS_AUTH_CACHE_KEY, JSON.stringify(authConfig));
-  } catch {
-    // Silencioso: si el navegador bloquea storage, no hacemos nada
-  }
-}
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-
 // NUEVO: configuración por defecto de IA profunda (microservicio externo)
 const DEEP_AI_CONFIG = {
   enabled: true, // pon false si quieres desactivarla temporalmente
@@ -124,24 +87,6 @@ let globalConfig = {
   cbqdEnabled: DEFAULT_CBQD_ENABLED,
   cbqdItems: DEFAULT_CBQD_ITEMS
 };
-
-// Estado de carga de configuración (evita que el alumnado entre antes de tener CBQD/contraseñas/ajustes actualizados)
-let _configLoaded = false;
-let _configOk = false;
-let _configLoadPromise = null;
-
-async function ensureConfigLoaded() {
-  if (_configLoaded) return _configOk;
-  if (_configLoadPromise) return _configLoadPromise;
-
-  _configLoadPromise = (async () => {
-    _configOk = await loadGlobalConfig();
-    _configLoaded = true;
-    return _configOk;
-  })();
-
-  return _configLoadPromise;
-}
 
 // ----- GESTIÓN DE SECCIONES -----
 const loginSection = document.getElementById("login-section");
@@ -207,20 +152,7 @@ backButtons.forEach(btn => {
     const accessPassword = document.getElementById("access-password");
     if (roleSelect) roleSelect.value = "";
     if (accessPassword) accessPassword.value = "";
-
-    // Asegura que, al volver y acceder de nuevo, no queden datos del alumno anterior
-    resetUploaderState({ newParticipant: true });
   });
-
-
-// Al cargar la página, limpia posibles restos de una participación previa en este dispositivo
-window.addEventListener("load", () => {
-  try {
-    resetUploaderState({ newParticipant: true });
-  } catch (err) {
-    console.error(err);
-  }
-});
 });
 
 // ---- APLICAR CONFIGURACIÓN ----
@@ -461,9 +393,6 @@ async function loadGlobalConfig() {
       globalConfig.deepAI = mergeDeepAIConfig(data.deepAI);
       globalConfig.cbqdEnabled = (data.cbqdEnabled !== undefined) ? !!data.cbqdEnabled : DEFAULT_CBQD_ENABLED;
       globalConfig.cbqdItems = Array.isArray(data.cbqdItems) ? data.cbqdItems : DEFAULT_CBQD_ITEMS;
-
-      // Guarda una copia utilizable de contraseñas para iOS/Safari (si más tarde Firestore falla)
-      saveAuthCache(globalConfig.authConfig);
     } else {
       globalConfig.askCenter = false;
       globalConfig.centers = [];
@@ -471,47 +400,30 @@ async function loadGlobalConfig() {
       globalConfig.aiConfig = DEFAULT_AI_CONFIG;
       globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
       globalConfig.deepAI = DEEP_AI_CONFIG;
+    globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+    globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
       globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
       globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
-
-      saveAuthCache(globalConfig.authConfig);
     }
   } catch (err) {
     console.error("Error cargando configuración global:", err);
-
     globalConfig.askCenter = false;
     globalConfig.centers = [];
     globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
     globalConfig.aiConfig = DEFAULT_AI_CONFIG;
-    globalConfig.deepAI = DEEP_AI_CONFIG;
-    globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
-    globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
-
-    // En iOS/Safari puede fallar puntualmente Firestore: intenta usar la última config válida
-    const cached = loadAuthCache();
-    if (cached) {
-      globalConfig.authConfig = mergeAuthConfig(cached);
-      applyConfigToUpload();
-      applyConfigToAdmin();
-      buildRatingControls();
-      return false;
-    }
-
     globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
-    applyConfigToUpload();
-    applyConfigToAdmin();
-    buildRatingControls();
-    return false;
+    globalConfig.deepAI = DEEP_AI_CONFIG;
+      globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+      globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
   }
 
   applyConfigToUpload();
   applyConfigToAdmin();
   buildRatingControls();
-  return true;
 }
 
-// Cargar configuración al inicio (y garantizar que esté lista antes de usar contraseñas/CBQD)
-ensureConfigLoaded();
+// Cargar configuración al inicio
+loadGlobalConfig();
 
 // Listener para mostrar/ocultar modalidad de Bachillerato según nivel
 if (studiesSelect && bachWrapper) {
@@ -1175,14 +1087,9 @@ function showSection(sectionId) {
 }
 
 // ----- LOGIN / ACCESO POR ROL -----
-document.getElementById("login-button").addEventListener("click", async () => {
-  const ok = await ensureConfigLoaded();
-  // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
-  if (!ok) {
-    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
-  }
+document.getElementById("login-button").addEventListener("click", () => {
   const role = document.getElementById("role-select").value;
-  const password = normalizePwd(document.getElementById("access-password").value);
+  const password = document.getElementById("access-password").value.trim();
 
   if (!role) {
     alert("Selecciona un tipo de acceso.");
@@ -1195,8 +1102,6 @@ document.getElementById("login-button").addEventListener("click", async () => {
   else if (role === "expert") expected = auth.expertPassword;
   else if (role === "admin") expected = auth.adminPassword;
 
-  expected = normalizePwd(expected);
-
   if (password !== expected) {
     alert("Clave incorrecta.");
     return;
@@ -1205,8 +1110,8 @@ document.getElementById("login-button").addEventListener("click", async () => {
   loginSection.classList.add("hidden");
 
   if (role === "uploader") {
-    resetUploaderState({ newParticipant: true });
     showSection("upload");
+    showWizardStepByIndex(0);
   } else if (role === "expert") {
     showSection("expert");
   } else if (role === "admin") {
@@ -1365,102 +1270,6 @@ function ensureParticipantId() {
   return id;
 }
 
-function clearParticipantId() {
-  try {
-    localStorage.removeItem("cbqd_participant_id");
-  } catch (_) {}
-}
-
-// Reinicia el estado del alumnado para evitar que aparezcan datos del participante anterior
-function resetUploaderState({ newParticipant = true } = {}) {
-  // Formularios del wizard
-  const forms = ["step1-form", "task1-form", "task2-form", "task3-form"];
-  forms.forEach(id => {
-    const f = document.getElementById(id);
-    if (f && typeof f.reset === "function") f.reset();
-  });
-
-  // Ocultar bloques condicionales
-  if (typeof bachWrapper !== "undefined" && bachWrapper) bachWrapper.style.display = "none";
-  if (typeof centerWrapper !== "undefined" && centerWrapper) centerWrapper.style.display = globalConfig.askCenter ? "block" : "none";
-
-  // Limpiar radios CBQD explícitamente
-  document.querySelectorAll('input[type="radio"][name^="cbqd_"]').forEach(r => { r.checked = false; });
-
-  // Limpiar previews y análisis de microtareas
-  const previewIds = [
-    "task1-preview", "task2-preview", "task3-preview",
-    "task1-ai-analysis", "task2-ai-analysis", "task3-ai-analysis"
-  ];
-  previewIds.forEach(id => document.getElementById(id)?.classList?.add("hidden"));
-
-  const metaIds = ["task1-preview-meta","task2-preview-meta","task3-preview-meta"];
-  metaIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
-
-  const imgIds = ["task1-preview-image","task2-preview-image","task3-preview-image"];
-  imgIds.forEach(id => { const el = document.getElementById(id); if (el) el.src = ""; });
-
-  const scoreIds = [
-    "task1-ai-light","task1-ai-local","task1-ai-deep","task1-ai-deep-expl",
-    "task2-ai-light","task2-ai-local","task2-ai-deep","task2-ai-deep-expl",
-    "task3-ai-light","task3-ai-local","task3-ai-deep","task3-ai-deep-expl",
-    "cbqd-total","cbqd-subscales"
-  ];
-  scoreIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
-
-  // Cache de IA
-  if (typeof microtaskAiCache !== "undefined" && microtaskAiCache) {
-    microtaskAiCache.MT1_AUTOEXP = null;
-    microtaskAiCache.MT2_ESCOLAR = null;
-    microtaskAiCache.MT3_TRANSFORM = null;
-  }
-
-  // Vuelve al paso 1 del wizard
-  if (typeof showWizardStepByIndex === "function") {
-    showWizardStepByIndex(0);
-  }
-
-  // Nuevo participante (evita arrastrar identificación entre alumnos)
-  if (newParticipant) clearParticipantId();
-}
-
-
-function newSessionId() {
-  return `S_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-// Hash simple (no criptográfico) para versionado reproducible en exportaciones.
-function simpleHash(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  // a unsigned + base36 para hacerlo corto
-  return (h >>> 0).toString(36);
-}
-
-function computeCbqdInstrumentVersion(cbqdItems) {
-  const items = Array.isArray(cbqdItems) ? cbqdItems : [];
-  const payload = items.map(it => `${it.id}|${it.domain || "GENERAL"}|${it.text || ""}`).join("\n");
-  return `CBQD_${items.length}_${simpleHash(payload)}`;
-}
-
-function computeCbqdScores(cbqdResponses) {
-  const valid = (cbqdResponses || []).filter(r => Number.isFinite(r.value));
-  const total = valid.reduce((a, r) => a + r.value, 0);
-  const subscales = {};
-  valid.forEach(r => {
-    const k = (r.domain || "GENERAL").trim() || "GENERAL";
-    subscales[k] = (subscales[k] || 0) + r.value;
-  });
-  return { total, subscales, answered: valid.length, missing: (cbqdResponses || []).length - valid.length };
-}
-
 function renderCbqd() {
   if (!cbqdItemsHost) return;
 
@@ -1474,7 +1283,6 @@ function renderCbqd() {
   items.forEach((it, idx) => {
     const box = document.createElement("div");
     box.className = "cbqd-item";
-    box.dataset.cbqdId = String(it.id);
 
     const p = document.createElement("p");
     p.innerHTML = `<strong>${idx + 1}.</strong> ${it.text}`;
@@ -1490,11 +1298,7 @@ function renderCbqd() {
       input.name = `cbqd_${it.id}`;
       input.value = String(v);
       input.required = true;
-      input.addEventListener("change", () => {
-        // Si el alumno responde, quitamos cualquier marca de "pendiente".
-        box.classList.remove("cbqd-missing");
-        updateCbqdScores();
-      });
+      input.addEventListener("change", updateCbqdScores);
 
       lab.appendChild(input);
       lab.appendChild(document.createTextNode(String(v)));
@@ -1506,77 +1310,6 @@ function renderCbqd() {
   });
 
   updateCbqdScores();
-}
-
-// Inyecta un estilo mínimo para indicar ítems CBQD pendientes sin tocar tu CSS.
-function ensureCbqdMissingStyle() {
-  if (document.getElementById("cbqd-missing-style")) return;
-  const style = document.createElement("style");
-  style.id = "cbqd-missing-style";
-  style.textContent = `
-    .cbqd-item.cbqd-missing{outline:2px solid #b00020; outline-offset:6px; border-radius:10px;}
-    .cbqd-item.cbqd-missing p{color:#b00020;}
-  `;
-  document.head.appendChild(style);
-}
-
-function showWizardMessage(text) {
-  const msg = document.getElementById("wizard-message");
-  if (!msg) {
-    alert(text);
-    return;
-  }
-  msg.textContent = text;
-  msg.className = "message error";
-}
-
-function clearWizardMessage() {
-  const msg = document.getElementById("wizard-message");
-  if (!msg) return;
-  msg.textContent = "";
-  msg.className = "message";
-}
-
-// Valida que el CBQD esté completo (si está activado). Si falta algo, avisa, marca y centra el primer ítem pendiente.
-function validateCbqdComplete({ focusFirstMissing = true } = {}) {
-  const items = globalConfig.cbqdItems || [];
-  const cbqdEnabledNow = !!globalConfig.cbqdEnabled && items.length > 0;
-  if (!cbqdEnabledNow) return true;
-
-  const responses = getCbqdResponses();
-  const missingIds = responses.filter(r => r.value === null).map(r => String(r.id));
-
-  // Limpia marcas previas
-  document.querySelectorAll(".cbqd-item.cbqd-missing").forEach(el => el.classList.remove("cbqd-missing"));
-
-  if (!missingIds.length) return true;
-
-  ensureCbqdMissingStyle();
-
-  // Marca los ítems pendientes
-  missingIds.forEach(id => {
-    const el = cbqdItemsHost?.querySelector(`.cbqd-item[data-cbqd-id="${CSS.escape(id)}"]`);
-    if (el) el.classList.add("cbqd-missing");
-  });
-
-  showWizardMessage(`Te falta por responder ${missingIds.length} ítem(s) del CBQD. Complétalos para continuar.`);
-
-  // Lleva al alumno al paso del CBQD si no está ya
-  const currentStep = wizardOrder[wizardIdx];
-  if (currentStep !== 2) {
-    // Busca el índice del paso 2 en el orden actual
-    const targetIdx = wizardOrder.indexOf(2);
-    if (targetIdx >= 0) showWizardStepByIndex(targetIdx);
-  }
-
-  if (focusFirstMissing) {
-    const firstId = missingIds[0];
-    const firstEl = cbqdItemsHost?.querySelector(`.cbqd-item[data-cbqd-id="${CSS.escape(firstId)}"]`);
-    if (firstEl && typeof firstEl.scrollIntoView === "function") {
-      firstEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }
-  return false;
 }
 
 function getCbqdResponses() {
@@ -1592,15 +1325,6 @@ function getCbqdResponses() {
 }
 
 function updateCbqdScores() {
-  // Si el alumno va completando, limpia el aviso general cuando ya no falte nada.
-  const items = globalConfig.cbqdItems || [];
-  if (!!globalConfig.cbqdEnabled && items.length) {
-    const stillMissing = getCbqdResponses().some(r => r.value === null);
-    if (!stillMissing) {
-      clearWizardMessage();
-      document.querySelectorAll(".cbqd-item.cbqd-missing").forEach(el => el.classList.remove("cbqd-missing"));
-    }
-  }
   const totalEl = document.getElementById("cbqd-total");
   const subEl = document.getElementById("cbqd-subscales");
 
@@ -1642,7 +1366,7 @@ task2TextArea?.addEventListener("input", () => {
 // ==================================================
 // Cache en memoria para no recalcular continuamente.
 // Se recalcula de nuevo en el envío final por robustez.
-let microtaskAiCache = {
+const microtaskAiCache = {
   MT1_AUTOEXP: null,
   MT2_ESCOLAR: null,
   MT3_TRANSFORM: null
@@ -1785,8 +1509,14 @@ wizardBack4?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1
 wizardBack5?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
 
 wizardNext2?.addEventListener("click", () => {
-  // Si CBQD está activo, no se puede avanzar hasta completarlo.
-  if (!validateCbqdComplete({ focusFirstMissing: true })) return;
+  // si CBQD está activado y tiene ítems, exige completarlo
+  if (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length) {
+    const missing = getCbqdResponses().some(r => r.value === null);
+    if (missing) {
+      alert("Por favor, completa todos los ítems del CBQD.");
+      return;
+    }
+  }
   showWizardStepByIndex(wizardIdx + 1);
 });
 
@@ -1810,7 +1540,6 @@ submitAllBtn?.addEventListener("click", async () => {
   }
 
   try {
-    await ensureConfigLoaded();
     const step1Form = document.getElementById("step1-form");
     const t1 = document.getElementById("task1-form");
     const t2 = document.getElementById("task2-form");
@@ -1822,12 +1551,15 @@ submitAllBtn?.addEventListener("click", async () => {
     if (t3 && !t3.reportValidity()) return;
 
     // CBQD (si procede)
-    // Si CBQD está activo, bloquea el envío hasta completarlo.
-    if (!validateCbqdComplete({ focusFirstMissing: true })) return;
+    if (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length) {
+      const missing = getCbqdResponses().some(r => r.value === null);
+      if (missing) {
+        alert("Por favor, completa todos los ítems del CBQD.");
+        return;
+      }
+    }
 
     const participantId = ensureParticipantId();
-    const sessionId = newSessionId();
-    const submittedAt = nowIso();
 
     // Demografía (campos ya existentes)
     const ageValue = Number(document.getElementById("age")?.value || 0);
@@ -1848,11 +1580,9 @@ submitAllBtn?.addEventListener("click", async () => {
     const privacyOk = document.getElementById("privacy-ok")?.checked;
     if (!privacyOk) throw new Error("Debes aceptar la política de privacidad.");
 
-    const cbqdItemsNow = globalConfig.cbqdItems || [];
-    const cbqdEnabledNow = !!globalConfig.cbqdEnabled && cbqdItemsNow.length > 0;
-    const cbqdResponses = cbqdEnabledNow ? getCbqdResponses() : [];
-    const cbqdInstrumentVersion = cbqdEnabledNow ? computeCbqdInstrumentVersion(cbqdItemsNow) : "";
-    const cbqdScores = cbqdEnabledNow ? computeCbqdScores(cbqdResponses) : { total: null, subscales: {}, answered: 0, missing: 0 };
+    const cbqdResponses = (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length)
+      ? getCbqdResponses()
+      : [];
 
     // Archivos microtareas
     const f1 = document.getElementById("task1-photo")?.files?.[0];
@@ -1882,84 +1612,41 @@ submitAllBtn?.addEventListener("click", async () => {
       getOrAnalyze("MT3_TRANSFORM", f3)
     ]);
 
-    // Guardar PARTICIPANT (identificador persistente) + SESIÓN (una participación concreta).
-    // - participants: mínimo para poder unir y auditar.
-    // - sessions: snapshot completo (demografía + CBQD) para análisis científico.
+    // Guardar participante
     const participantRef = doc(db, "participants", participantId);
-    const pSnap = await getDoc(participantRef);
-    const firstSeenAt = (pSnap.exists() && pSnap.data()?.firstSeenAt) ? pSnap.data().firstSeenAt : submittedAt;
     await setDoc(participantRef, {
       participantId,
-      firstSeenAt,
-      lastSeenAt: submittedAt
-    }, { merge: true });
-
-    const demographics = {
-      age: ageValue,
-      gender,
-      studies,
-      bachType,
-      vocation,
-      studiesFather,
-      studiesMother,
-      rep,
-      fail,
-      pcsHome,
-      pcRoom,
-      pcFrequency,
-      pcHours,
-      center: globalConfig.askCenter ? center : ""
-    };
-
-    const sessionRef = doc(db, "sessions", sessionId);
-    await setDoc(sessionRef, {
-      sessionId,
-      participantId,
-      submittedAt,
-      demographics,
+      createdAt: Date.now(),
+      demographics: {
+        age: ageValue,
+        gender,
+        studies,
+        bachType,
+        vocation,
+        studiesFather,
+        studiesMother,
+        rep,
+        fail,
+        pcsHome,
+        pcRoom,
+        pcFrequency,
+        pcHours,
+        center: globalConfig.askCenter ? center : ""
+      },
       cbqd: {
-        enabled: cbqdEnabledNow,
-        instrumentVersion: cbqdInstrumentVersion,
-        itemsUsed: cbqdItemsNow.map(it => ({ id: it.id, domain: it.domain || "GENERAL", text: it.text || "" })),
-        responses: cbqdResponses,
-        scores: {
-          total: cbqdScores.total,
-          subscales: cbqdScores.subscales,
-          answered: cbqdScores.answered,
-          missing: cbqdScores.missing
-        }
+        enabled: !!globalConfig.cbqdEnabled,
+        responses: cbqdResponses
       }
-    });
+    }, { merge: true });
 
     // Guardar artefactos como "photos" para integrarlos con valoración por expertos
     const commonMeta = {
       participantId,
-      sessionId,
-      submittedAt,
-      taskSource: "wizard",
-
-      // Snapshot mínimo en la foto para no romper la interfaz de expertos ni gráficas rápidas.
-      // El 'canon' para análisis está en sessions.demographics.
+      createdAt: Date.now(),
       age: ageValue,
       gender,
       studies,
-      bachType,
-      vocation,
-      studiesFather,
-      studiesMother,
-      rep,
-      fail,
-      pcsHome,
-      pcRoom,
-      pcFrequency,
-      pcHours,
-      center: globalConfig.askCenter ? center : "",
-
-      cbqdEnabled: cbqdEnabledNow,
-      cbqdVersion: cbqdInstrumentVersion,
-      cbqdTotal: cbqdScores.total,
-      cbqdSubscales: cbqdScores.subscales,
-      cbqdResponses: cbqdResponses
+      center: globalConfig.askCenter ? center : ""
     };
 
     await addDoc(photosCol, {
@@ -1997,10 +1684,6 @@ submitAllBtn?.addEventListener("click", async () => {
       msg.className = "message success";
       msg.textContent = "¡Enviado! Muchas gracias por participar.";
     }
-
-    // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
-    clearParticipantId();
-    microtaskAiCache = {};
 
   } catch (err) {
     console.error(err);
@@ -2557,73 +2240,28 @@ if (loadPhotosButton) {
   loadPhotosButton.addEventListener("click", loadAllPhotosWithRatings);
 }
 
-// Exportar CSV (formato largo): 1 fila por (foto × experto), incluyendo CBQD + demografía vinculada.
+// Exportar CSV dinámico con ítems configurables + IA ligera + IA avanzada + IA profunda
 document.getElementById("export-csv-button").addEventListener("click", async () => {
   try {
-    const [photosSnap, ratingsSnap, sessionsSnap] = await Promise.all([
-      getDocs(photosCol),
-      getDocs(ratingsCol),
-      getDocs(sessionsCol)
-    ]);
+    const photosSnap = await getDocs(photosCol);
+    const ratingsSnap = await getDocs(ratingsCol);
 
     if (photosSnap.empty) {
       alert("No hay fotografías almacenadas.");
       return;
     }
 
-    // Indexación en memoria
     const photos = {};
-    photosSnap.docs.forEach(d => { photos[d.id] = d.data(); });
+    photosSnap.docs.forEach(docSnap => {
+      photos[docSnap.id] = docSnap.data();
+    });
 
-    const sessions = {};
-    sessionsSnap.docs.forEach(d => { sessions[d.id] = d.data(); });
-
-    const ratingItems = (globalConfig.ratingItems && globalConfig.ratingItems.length)
+    const items = globalConfig.ratingItems && globalConfig.ratingItems.length
       ? globalConfig.ratingItems
       : DEFAULT_RATING_ITEMS;
 
-    // Detectar universo de ítems CBQD y dominios (para exportaciones robustas aunque cambie la config)
-    const cbqdItemIds = new Set();
-    const cbqdDomains = new Set();
-
-    Object.values(sessions).forEach(s => {
-      const c = s.cbqd || {};
-      const items = c.itemsUsed || c.items || [];
-      items.forEach(it => {
-        if (it?.id) cbqdItemIds.add(it.id);
-        const dom = (it?.domain || "GENERAL").trim() || "GENERAL";
-        cbqdDomains.add(dom);
-      });
-      (c.responses || []).forEach(r => {
-        if (r?.id) cbqdItemIds.add(r.id);
-        const dom = (r?.domain || "GENERAL").trim() || "GENERAL";
-        cbqdDomains.add(dom);
-      });
-    });
-
-    // Si todavía no hay sesiones (datos antiguos), usa la config actual como fallback.
-    if (cbqdItemIds.size === 0) {
-      (globalConfig.cbqdItems || []).forEach(it => {
-        if (it?.id) cbqdItemIds.add(it.id);
-        const dom = (it?.domain || "GENERAL").trim() || "GENERAL";
-        cbqdDomains.add(dom);
-      });
-    }
-
-    const cbqdItemList = Array.from(cbqdItemIds).sort();
-    const cbqdDomainList = Array.from(cbqdDomains).sort();
-
     const header = [
-      // Identificación y estructura
       "fotoId",
-      "taskId",
-      "participantId",
-      "sessionId",
-      "submittedAt",
-      "createdAt",
-      "text280",
-
-      // Demografía
       "sexo",
       "edad",
       "estudios",
@@ -2638,20 +2276,6 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "frecuencia_uso_ordenador",
       "horas_diarias_ordenador",
       "centro_educativo",
-
-      // CBQD
-      "cbqd_on",
-      "cbqd_ver",
-      "cbqd_total",
-      "cbqd_answered",
-      "cbqd_missing"
-    ];
-
-    cbqdDomainList.forEach(dom => header.push(`cbqd_dom_${dom}`));
-    cbqdItemList.forEach(id => header.push(`cbqd_item_${id}`));
-
-    // IA
-    header.push(
       "ai_brightness",
       "ai_contrast",
       "ai_colorfulness",
@@ -2664,179 +2288,127 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "local_score",
       "deep_score",
       "deep_explanation",
-
-      // Valoración
       "expertoId"
-    );
+    ];
 
-    ratingItems.forEach(item => header.push(item.label));
+    items.forEach(item => {
+      header.push(item.label);
+    });
+
     header.push("puntf");
 
-    const rows = [header];
+    const rows = [];
+    rows.push(header);
 
-    const ratingsArr = ratingsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    function pickDemographics(p, s) {
-      // Preferimos el snapshot de sesión; si no existe, usamos lo que haya en la foto.
-      const d = (s && s.demographics) ? s.demographics : (p || {});
-      return {
-        age: d.age ?? p?.age ?? "",
-        gender: d.gender || p?.gender || "",
-        studies: d.studies || p?.studies || "",
-        bachType: d.bachType || p?.bachType || "",
-        vocation: d.vocation || p?.vocation || "",
-        studiesFather: d.studiesFather || p?.studiesFather || "",
-        studiesMother: d.studiesMother || p?.studiesMother || "",
-        rep: d.rep || p?.rep || "",
-        fail: d.fail || p?.fail || "",
-        pcsHome: d.pcsHome ?? p?.pcsHome ?? "",
-        pcRoom: d.pcRoom || p?.pcRoom || "",
-        pcFrequency: d.pcFrequency || p?.pcFrequency || "",
-        pcHours: d.pcHours ?? p?.pcHours ?? "",
-        center: d.center || p?.center || ""
-      };
-    }
-
-    function pickCbqd(p, s) {
-      const c = (s && s.cbqd) ? s.cbqd : null;
-      if (c && typeof c === "object") {
-        const enabled = !!(c.enabled);
-        const version = c.instrumentVersion || "";
-
-        // Compatibilidad: algunos datos guardan scores en c.scores
-        let total = null;
-        let subscales = {};
-        let answered = 0;
-        let missing = 0;
-        let responses = c.responses || [];
-        if (c.scores && typeof c.scores === "object") {
-          total = c.scores.total ?? null;
-          subscales = c.scores.subscales || {};
-          answered = c.scores.answered ?? 0;
-          missing = c.scores.missing ?? 0;
-        } else {
-          // si no hay scores, recomputamos
-          const sc = computeCbqdScores(responses);
-          total = sc.total;
-          subscales = sc.subscales;
-          answered = sc.answered;
-          missing = sc.missing;
-        }
-
-        const map = {};
-        responses.forEach(r => {
-          if (r?.id) map[r.id] = Number.isFinite(r.value) ? r.value : "";
-        });
-        return { enabled, version, total, subscales, answered, missing, map };
-      }
-
-      // Fallback (fotos antiguas)
-      const enabled = !!p?.cbqdEnabled;
-      const version = p?.cbqdVersion || "";
-      const total = (p?.cbqdTotal ?? "");
-      const subscales = p?.cbqdSubscales || {};
-      const map = {};
-      const resp = Array.isArray(p?.cbqdResponses) ? p.cbqdResponses : [];
-      resp.forEach(r => {
-        if (r?.id) map[r.id] = Number.isFinite(r.value) ? r.value : "";
-      });
-      const sc = resp.length ? computeCbqdScores(resp) : { answered: 0, missing: 0 };
-      return { enabled, version, total, subscales, answered: sc.answered, missing: sc.missing, map };
-    }
-
-    function photoRowBase(photoId, p, s, rOrNull) {
-      const f = p.aiFeatures || {};
-      const adv = p.localAdvanced || {};
-      const deep = p.deepAI || {};
-      const dem = pickDemographics(p, s);
-      const cbqd = pickCbqd(p, s);
-
-      const base = [
-        photoId,
-        p.taskId || "",
-        p.participantId || s?.participantId || "",
-        p.sessionId || "",
-        p.submittedAt || s?.submittedAt || "",
-        p.createdAt || "",
-        p.text280 || "",
-
-        dem.gender,
-        dem.age,
-        dem.studies,
-        dem.bachType,
-        dem.vocation,
-        dem.studiesFather,
-        dem.studiesMother,
-        dem.rep,
-        dem.fail,
-        dem.pcsHome,
-        dem.pcRoom,
-        dem.pcFrequency,
-        dem.pcHours,
-        dem.center,
-
-        cbqd.enabled ? "1" : "0",
-        cbqd.version,
-        cbqd.total ?? "",
-        cbqd.answered ?? "",
-        cbqd.missing ?? ""
-      ];
-
-      // Subescalas fijas por dominio
-      cbqdDomainList.forEach(dom => base.push(cbqd.subscales?.[dom] ?? ""));
-      // Ítems
-      cbqdItemList.forEach(id => base.push(cbqd.map?.[id] ?? ""));
-
-      base.push(
-        f.brightness ?? "",
-        f.contrast ?? "",
-        f.colorfulness ?? "",
-        f.edgeDensity ?? "",
-        p.aiScore ?? "",
-        adv.thirdsScore ?? "",
-        adv.horizonScore ?? "",
-        adv.goldenScore ?? "",
-        adv.salienceScore ?? "",
-        adv.localAdvancedScore ?? "",
-        deep.deepScore ?? "",
-        deep.deepExplanation ?? "",
-        rOrNull?.expertId || ""
-      );
-
-      // Ratings
-      const ratingsMap = rOrNull?.ratings || {};
-      ratingItems.forEach((item, idx) => {
-        let val = ratingsMap[item.id];
-        if (val === undefined && rOrNull && rOrNull[`sub${idx + 1}`] !== undefined) {
-          val = rOrNull[`sub${idx + 1}`];
-        }
-        base.push(val ?? "");
-      });
-
-      base.push(rOrNull && typeof rOrNull.puntf === "number" ? rOrNull.puntf.toFixed(2) : "");
-      return base;
-    }
+    const ratingsArr = ratingsSnap.docs.map(docSnap => ({
+      id: docSnap.id,
+      ...docSnap.data()
+    }));
 
     if (ratingsArr.length === 0) {
       // Sin valoraciones: una fila por foto
-      Object.entries(photos).forEach(([photoId, p]) => {
-        const s = p.sessionId ? sessions[p.sessionId] : null;
-        rows.push(photoRowBase(photoId, p, s, null));
+      Object.entries(photos).forEach(([id, p]) => {
+        const f = p.aiFeatures || {};
+        const adv = p.localAdvanced || {};
+        const deep = p.deepAI || {};
+
+        const base = [
+          id,
+          p.gender || "",
+          p.age ?? "",
+          p.studies || "",
+          p.bachType || "",
+          p.vocation || "",
+          p.studiesFather || "",
+          p.studiesMother || "",
+          p.rep || "",
+          p.fail || "",
+          p.pcsHome ?? "",
+          p.pcRoom || "",
+          p.pcFrequency || "",
+          p.pcHours ?? "",
+          p.center || "",
+          f.brightness ?? "",
+          f.contrast ?? "",
+          f.colorfulness ?? "",
+          f.edgeDensity ?? "",
+          p.aiScore ?? "",
+          adv.thirdsScore ?? "",
+          adv.horizonScore ?? "",
+          adv.goldenScore ?? "",
+          adv.salienceScore ?? "",
+          adv.localAdvancedScore ?? "",
+          deep.deepScore ?? "",
+          deep.deepExplanation ?? "",
+          ""
+        ];
+
+        items.forEach(() => {
+          base.push("");
+        });
+
+        base.push("");
+        rows.push(base);
       });
     } else {
       // Con valoraciones: una fila por valoración
       ratingsArr.forEach(r => {
         const p = photos[r.photoId];
         if (!p) return;
-        const s = p.sessionId ? sessions[p.sessionId] : null;
-        rows.push(photoRowBase(r.photoId, p, s, r));
+
+        const f = p.aiFeatures || {};
+        const adv = p.localAdvanced || {};
+        const deep = p.deepAI || {};
+
+        const base = [
+          r.photoId,
+          p.gender || "",
+          p.age ?? "",
+          p.studies || "",
+          p.bachType || "",
+          p.vocation || "",
+          p.studiesFather || "",
+          p.studiesMother || "",
+          p.rep || "",
+          p.fail || "",
+          p.pcsHome ?? "",
+          p.pcRoom || "",
+          p.pcFrequency || "",
+          p.pcHours ?? "",
+          p.center || "",
+          f.brightness ?? "",
+          f.contrast ?? "",
+          f.colorfulness ?? "",
+          f.edgeDensity ?? "",
+          p.aiScore ?? "",
+          adv.thirdsScore ?? "",
+          adv.horizonScore ?? "",
+          adv.goldenScore ?? "",
+          adv.salienceScore ?? "",
+          adv.localAdvancedScore ?? "",
+          deep.deepScore ?? "",
+          deep.deepExplanation ?? "",
+          r.expertId || ""
+        ];
+
+        const ratingsMap = r.ratings || {};
+        items.forEach((item, idx) => {
+          let val = ratingsMap[item.id];
+          if (val === undefined && r[`sub${idx + 1}`] !== undefined) {
+            val = r[`sub${idx + 1}`];
+          }
+          base.push(val ?? "");
+        });
+
+        base.push(typeof r.puntf === "number" ? r.puntf.toFixed(2) : "");
+        rows.push(base);
       });
     }
 
     const csvContent = rows.map(row =>
       row.map(value => {
         const str = String(value ?? "");
-        if (str.includes(";") || str.includes("\"") || str.includes("\n") || str.includes("\r")) {
+        if (str.includes(";") || str.includes("\"")) {
           return `"${str.replace(/"/g, '""')}"`;
         }
         return str;
@@ -2848,7 +2420,7 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
     const now = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     const a = document.createElement("a");
     a.href = url;
-    a.download = `creatividad_digital_full_${now}.csv`;
+    a.download = `creatividad_digital_${now}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
