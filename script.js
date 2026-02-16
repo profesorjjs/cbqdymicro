@@ -1336,6 +1336,8 @@ const wizardBack3 = document.getElementById("wizard-back-3");
 const wizardBack4 = document.getElementById("wizard-back-4");
 const wizardBack5 = document.getElementById("wizard-back-5");
 const submitAllBtn = document.getElementById("submit-all");
+// Texto por defecto del botón de envío (para restaurarlo entre alumnos)
+const SUBMIT_ALL_DEFAULT_LABEL = submitAllBtn?.textContent || "Enviar todo";
 
 const cbqdDisabledBox = document.getElementById("cbqd-disabled");
 const cbqdWarningBox = document.getElementById("cbqd-warning");
@@ -1463,6 +1465,13 @@ function resetUploaderState({ newParticipant = true } = {}) {
   // Vuelve al paso 1 del wizard
   if (typeof showWizardStepByIndex === "function") {
     showWizardStepByIndex(0);
+  }
+
+  // Rehabilita el botón de envío para el siguiente alumno
+  if (submitAllBtn) {
+    submitAllBtn.disabled = false;
+    submitAllBtn.removeAttribute("aria-busy");
+    submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
   }
 
   // Nuevo participante (evita arrastrar identificación entre alumnos)
@@ -1859,6 +1868,9 @@ submitAllBtn?.addEventListener("click", async () => {
     msg.className = "message";
   }
 
+  // Evita envíos repetidos (doble click o reintentos tras envío correcto)
+  if (submitAllBtn?.disabled) return;
+
   try {
     await ensureConfigLoaded();
     const step1Form = document.getElementById("step1-form");
@@ -1874,6 +1886,13 @@ submitAllBtn?.addEventListener("click", async () => {
     // CBQD (si procede)
     // Si CBQD está activo, bloquea el envío hasta completarlo.
     if (!validateCbqdComplete({ focusFirstMissing: true })) return;
+
+    // A partir de aquí ya intentamos enviar: bloquea el botón para evitar dobles envíos.
+    if (submitAllBtn) {
+      submitAllBtn.disabled = true;
+      submitAllBtn.setAttribute("aria-busy", "true");
+      submitAllBtn.textContent = "Enviando…";
+    }
 
     const participantId = ensureParticipantId();
     const sessionId = newSessionId();
@@ -2055,6 +2074,13 @@ submitAllBtn?.addEventListener("click", async () => {
       msg.textContent = "¡Enviado! Muchas gracias por participar.";
     }
 
+    // Deja el botón bloqueado para este alumno (ya ha enviado)
+    if (submitAllBtn) {
+      submitAllBtn.disabled = true;
+      submitAllBtn.removeAttribute("aria-busy");
+      submitAllBtn.textContent = "Enviado ✓";
+    }
+
     // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
     clearParticipantId();
     microtaskAiCache = {};
@@ -2064,6 +2090,13 @@ submitAllBtn?.addEventListener("click", async () => {
     if (msg) {
       msg.className = "message error";
       msg.textContent = err?.message || "Ha ocurrido un error al enviar.";
+    }
+
+    // Si ha fallado el envío, vuelve a habilitar el botón para reintentar
+    if (submitAllBtn) {
+      submitAllBtn.disabled = false;
+      submitAllBtn.removeAttribute("aria-busy");
+      submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
     }
   }
 });
