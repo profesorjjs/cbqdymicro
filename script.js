@@ -301,10 +301,10 @@ function applyConfigToAdmin() {
     askCenterToggle.checked = !!globalConfig.askCenter;
   }
   if (centersTextarea) {
-    centersTextarea.value = (globalConfig.centers || []).join("\n");
+    centersTextarea.value = (globalConfig.centers || []).join("\r\n");
   }
   if (ratingItemsTextarea) {
-    ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\n");
+    ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\r\n");
   }
 
   // Claves de acceso
@@ -325,7 +325,7 @@ function applyConfigToAdmin() {
     cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
   }
   if (cbqdItemsTextarea) {
-    cbqdItemsTextarea.value = (globalConfig.cbqdItems || []).map(it => `${it.domain || "GENERAL"}|${it.text || ""}`.trim()).join("\n");
+    cbqdItemsTextarea.value = (globalConfig.cbqdItems || []).map(it => `${it.domain || "GENERAL"}|${it.text || ""}`.trim()).join("\r\n");
   }
 
   applyAiConfigToAdmin();
@@ -1336,8 +1336,6 @@ const wizardBack3 = document.getElementById("wizard-back-3");
 const wizardBack4 = document.getElementById("wizard-back-4");
 const wizardBack5 = document.getElementById("wizard-back-5");
 const submitAllBtn = document.getElementById("submit-all");
-// Texto por defecto del botón de envío (para restaurarlo entre alumnos)
-const SUBMIT_ALL_DEFAULT_LABEL = submitAllBtn?.textContent || "Enviar todo";
 
 const cbqdDisabledBox = document.getElementById("cbqd-disabled");
 const cbqdWarningBox = document.getElementById("cbqd-warning");
@@ -1427,6 +1425,18 @@ function resetUploaderState({ newParticipant = true } = {}) {
     if (f && typeof f.reset === "function") f.reset();
   });
 
+  // Rehabilitar botones del último paso (por si el alumno anterior ya envió)
+  const finalBackBtn = wizardBack5 || document.getElementById("wizard-back-5");
+  if (submitAllBtn) {
+    submitAllBtn.disabled = false;
+    submitAllBtn.textContent = submitAllBtn.dataset.originalText || "Enviar todo";
+  }
+  if (finalBackBtn) {
+    finalBackBtn.disabled = false;
+    finalBackBtn.textContent = finalBackBtn.dataset.originalText || finalBackBtn.textContent || "Atrás";
+  }
+
+
   // Ocultar bloques condicionales
   if (typeof bachWrapper !== "undefined" && bachWrapper) bachWrapper.style.display = "none";
   if (typeof centerWrapper !== "undefined" && centerWrapper) centerWrapper.style.display = globalConfig.askCenter ? "block" : "none";
@@ -1467,13 +1477,6 @@ function resetUploaderState({ newParticipant = true } = {}) {
     showWizardStepByIndex(0);
   }
 
-  // Rehabilita el botón de envío para el siguiente alumno
-  if (submitAllBtn) {
-    submitAllBtn.disabled = false;
-    submitAllBtn.removeAttribute("aria-busy");
-    submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
-  }
-
   // Nuevo participante (evita arrastrar identificación entre alumnos)
   if (newParticipant) clearParticipantId();
 }
@@ -1500,7 +1503,7 @@ function simpleHash(str) {
 
 function computeCbqdInstrumentVersion(cbqdItems) {
   const items = Array.isArray(cbqdItems) ? cbqdItems : [];
-  const payload = items.map(it => `${it.id}|${it.domain || "GENERAL"}|${it.text || ""}`).join("\n");
+  const payload = items.map(it => `${it.id}|${it.domain || "GENERAL"}|${it.text || ""}`).join("\r\n");
   return `CBQD_${items.length}_${simpleHash(payload)}`;
 }
 
@@ -1868,9 +1871,6 @@ submitAllBtn?.addEventListener("click", async () => {
     msg.className = "message";
   }
 
-  // Evita envíos repetidos (doble click o reintentos tras envío correcto)
-  if (submitAllBtn?.disabled) return;
-
   try {
     await ensureConfigLoaded();
     const step1Form = document.getElementById("step1-form");
@@ -1886,13 +1886,6 @@ submitAllBtn?.addEventListener("click", async () => {
     // CBQD (si procede)
     // Si CBQD está activo, bloquea el envío hasta completarlo.
     if (!validateCbqdComplete({ focusFirstMissing: true })) return;
-
-    // A partir de aquí ya intentamos enviar: bloquea el botón para evitar dobles envíos.
-    if (submitAllBtn) {
-      submitAllBtn.disabled = true;
-      submitAllBtn.setAttribute("aria-busy", "true");
-      submitAllBtn.textContent = "Enviando…";
-    }
 
     const participantId = ensureParticipantId();
     const sessionId = newSessionId();
@@ -1927,16 +1920,24 @@ submitAllBtn?.addEventListener("click", async () => {
     const f1 = document.getElementById("task1-photo")?.files?.[0];
     const f2 = document.getElementById("task2-photo")?.files?.[0];
     const f3 = document.getElementById("task3-output")?.files?.[0];
-    // Nota: en versiones anteriores la microtarea 2 incluía un campo de texto (≤ 280 caracteres).
-    // Actualmente NO es obligatorio y puede incluso no existir en el HTML.
     const task2Text = (document.getElementById("task2-text")?.value || "").trim();
 
     if (!f1 || !f2 || !f3) throw new Error("Faltan archivos de alguna microtarea.");
+    if (task2Text && task2Text.length > 280) throw new Error("El texto de la microtarea 2 debe tener como máximo 280 caracteres.");
 
-    // Microtarea 2: el texto es opcional (si existe), pero si se usa debe respetar el límite.
-    if (task2Text.length > 280) {
-      throw new Error("El texto de la microtarea 2 no puede superar los 280 caracteres.");
+    // Evita envíos duplicados por doble clic o por pulsaciones repetidas
+    // (se reactivará al reiniciar el estado para el siguiente alumno).
+    const finalBackBtn = wizardBack5 || document.getElementById("wizard-back-5");
+    if (submitAllBtn) {
+      if (!submitAllBtn.dataset.originalText) submitAllBtn.dataset.originalText = submitAllBtn.textContent || "Enviar todo";
+      submitAllBtn.disabled = true;
+      submitAllBtn.textContent = "Enviando…";
     }
+    if (finalBackBtn) {
+      if (!finalBackBtn.dataset.originalText) finalBackBtn.dataset.originalText = finalBackBtn.textContent || "Atrás";
+      finalBackBtn.disabled = true;
+    }
+
 
     // --- Preparar imágenes y análisis IA (por microtarea) ---
     // Reutiliza el cache si ya se analizó en la vista previa, pero vuelve a calcular si falta.
@@ -2051,8 +2052,7 @@ submitAllBtn?.addEventListener("click", async () => {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
       dataUrl: mt2.dataUrl,
-      // Guardamos el texto si existe y se ha rellenado; si no, dejamos null para evitar basura en exportaciones.
-      text280: task2Text ? task2Text : null,
+      text280: task2Text || null,
       aiFeatures: mt2.aiFeatures,
       aiScore: mt2.aiScore,
       localAdvanced: mt2.localAdvanced,
@@ -2072,13 +2072,13 @@ submitAllBtn?.addEventListener("click", async () => {
     if (msg) {
       msg.className = "message success";
       msg.textContent = "¡Enviado! Muchas gracias por participar.";
-    }
-
-    // Deja el botón bloqueado para este alumno (ya ha enviado)
     if (submitAllBtn) {
       submitAllBtn.disabled = true;
-      submitAllBtn.removeAttribute("aria-busy");
       submitAllBtn.textContent = "Enviado ✓";
+    }
+    const finalBackBtnOk = wizardBack5 || document.getElementById("wizard-back-5");
+    if (finalBackBtnOk) finalBackBtnOk.disabled = true;
+
     }
 
     // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
@@ -2086,17 +2086,20 @@ submitAllBtn?.addEventListener("click", async () => {
     microtaskAiCache = {};
 
   } catch (err) {
+    // Si falla el envío, permite reintentar
+    const finalBackBtnErr = wizardBack5 || document.getElementById("wizard-back-5");
+    if (submitAllBtn) {
+      submitAllBtn.disabled = false;
+      submitAllBtn.textContent = submitAllBtn.dataset.originalText || "Enviar todo";
+    }
+    if (finalBackBtnErr) {
+      finalBackBtnErr.disabled = false;
+    }
+
     console.error(err);
     if (msg) {
       msg.className = "message error";
       msg.textContent = err?.message || "Ha ocurrido un error al enviar.";
-    }
-
-    // Si ha fallado el envío, vuelve a habilitar el botón para reintentar
-    if (submitAllBtn) {
-      submitAllBtn.disabled = false;
-      submitAllBtn.removeAttribute("aria-busy");
-      submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
     }
   }
 });
@@ -2931,9 +2934,9 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         }
         return str;
       }).join(";")
-    ).join("\n");
+    ).join("\r\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\ufeff", csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const now = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     const a = document.createElement("a");
