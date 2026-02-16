@@ -208,17 +208,25 @@ button.secondary:hover {
 }
 
 .back-button {
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 0.8rem;
+  background: #e8eaf6;
+  color: #1a237e;
+  border: 1px solid #c5cae9;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
   cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
 }
 
 .back-button:hover {
-  color: #303f9f;
+  background: #dde1ff;
+  color: #1a237e;
+}
+
+.back-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ----- Panel admin: gráficos y listado de fotos ----- */
