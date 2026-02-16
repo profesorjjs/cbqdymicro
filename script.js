@@ -2770,11 +2770,7 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "taskId",
       "submittedAt",
       "createdAt",
-      "text280",
-      "fotoId_raw",
-      "sessionId_raw",
-
-      // Demografía
+      "text280",      // Demografía
       "sexo",
       "edad",
       "estudios",
@@ -2910,8 +2906,6 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         p.submittedAt || s?.submittedAt || "",
         p.createdAt || "",
         p.text280 || "",
-        photoId,
-        p.sessionId || "",
 
         dem.gender,
         dem.age,
@@ -3044,9 +3038,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
     const header = [
       "session_code",
       "student_code",
-      "createdAt",
-      "sessionId_raw",
-      "gender",
+      "createdAt",      "gender",
       "age",
       "studies",
       "bachType",
@@ -3066,25 +3058,19 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       "cbqd_answered",
       "cbqd_missing",
       // agregados por tarea
-      "task1_photo_code",
-      "task1_photoId_raw",
-      "task1_aiScore",
+      "task1_photo_code",      "task1_aiScore",
       "task1_localAdvancedScore",
       "task1_deepScore",
       "task1_puntf_mean",
       "task1_puntf_sd",
       "task1_puntf_n",
-      "task2_photo_code",
-      "task2_photoId_raw",
-      "task2_aiScore",
+      "task2_photo_code",      "task2_aiScore",
       "task2_localAdvancedScore",
       "task2_deepScore",
       "task2_puntf_mean",
       "task2_puntf_sd",
       "task2_puntf_n",
-      "task3_photo_code",
-      "task3_photoId_raw",
-      "task3_aiScore",
+      "task3_photo_code",      "task3_aiScore",
       "task3_localAdvancedScore",
       "task3_deepScore",
       "task3_puntf_mean",
@@ -3118,7 +3104,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
 
       const taskAgg = (t) => {
         const p = byTask[t];
-        if (!p) return { photoCode: "", photoIdRaw: "", aiScore: "", localAdvancedScore: "", deepScore: "", puntfMean: "", puntfSd: "", puntfN: "" };
+        if (!p) return { photoCode: "", photoIdForLookup: "", aiScore: "", localAdvancedScore: "", deepScore: "", puntfMean: "", puntfSd: "", puntfN: "" };
         const rs = ratingsByPhoto[p.photoId] || [];
         const puntfs = rs.map(r => (typeof r.puntf === "number" ? r.puntf : null));
         const m = mean(puntfs);
@@ -3126,7 +3112,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         const n = puntfs.filter(v => typeof v === "number" && Number.isFinite(v)).length;
         return {
           photoCode: makePhotoCode(p.photoId),
-          photoIdRaw: p.photoId,
+          photoIdForLookup: p.photoId,
           aiScore: p.aiScore ?? "",
           localAdvancedScore: p.localAdvancedScore ?? "",
           deepScore: p.deepScore ?? "",
@@ -3142,7 +3128,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
 
       const overallNums = [t1, t2, t3]
         .flatMap(t => {
-          const p = t.photoIdRaw ? (ratingsByPhoto[t.photoIdRaw] || []) : [];
+          const p = t.photoIdForLookup ? (ratingsByPhoto[t.photoIdForLookup] || []) : [];
           return p.map(r => (typeof r.puntf === "number" ? r.puntf : null));
         })
         .filter(v => typeof v === "number" && Number.isFinite(v));
@@ -3153,8 +3139,6 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         makeSessionCode(sessionId),
         makeStudentCode(s?.participantId || sessionId),
         s?.createdAt || "",
-        sessionId,
-
         dem.gender ?? "",
         dem.age ?? "",
         dem.studies ?? "",
@@ -3176,27 +3160,21 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         cbqd.answered ?? "",
         cbqd.missing ?? "",
 
-        t1.photoCode,
-        t1.photoIdRaw,
-        t1.aiScore,
+        t1.photoCode,        t1.aiScore,
         t1.localAdvancedScore,
         t1.deepScore,
         t1.puntfMean,
         t1.puntfSd,
         t1.puntfN,
 
-        t2.photoCode,
-        t2.photoIdRaw,
-        t2.aiScore,
+        t2.photoCode,        t2.aiScore,
         t2.localAdvancedScore,
         t2.deepScore,
         t2.puntfMean,
         t2.puntfSd,
         t2.puntfN,
 
-        t3.photoCode,
-        t3.photoIdRaw,
-        t3.aiScore,
+        t3.photoCode,        t3.aiScore,
         t3.localAdvancedScore,
         t3.deepScore,
         t3.puntfMean,
