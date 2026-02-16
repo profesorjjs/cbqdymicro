@@ -78,7 +78,7 @@
             <option value="ESO">ESO</option>
             <option value="Bachillerato">Bachillerato</option>
             <option value="Ciclo formativo">Ciclo formativo</option>
-            <option value="Universidad">Universidad</option>
+            <option value="Otros">Otros</option>
           </select>
         </div>
 
@@ -120,84 +120,42 @@
         </div>
 
         <div class="form-group">
-          <label for="avg-grade">Nota media del curso pasado:</label>
-          <input type="number" id="avg-grade" min="0" max="10" step="0.01" required placeholder="Ej.: 7.85">
+          <p>¿Has repetido curso alguna vez?</p>
+          <label><input type="radio" name="rep" value="Sí" required> Sí</label>
+          <label><input type="radio" name="rep" value="No"> No</label>
         </div>
 
         <div class="form-group">
-          <p><strong>Valora las siguientes cuestiones en una escala del 1 al 5 (1 = Totalmente en desacuerdo y 5 = Totalmente de acuerdo)</strong></p>
+          <p>¿Has suspendido alguna vez una asignatura?</p>
+          <label><input type="radio" name="fail" value="Sí" required> Sí</label>
+          <label><input type="radio" name="fail" value="No"> No</label>
         </div>
 
         <div class="form-group">
-          <label for="dc1">Me siento capaz de utilizar herramientas digitales para crear contenidos propios, como textos, imágenes, vídeos o presentaciones.</label>
-          <select id="dc1" required>
+          <label for="pcs-home">¿De cuántos ordenadores dispones en casa?</label>
+          <input type="number" id="pcs-home" min="0" required>
+        </div>
+
+        <div class="form-group">
+          <p>¿Dispones de un ordenador o un portátil en tu habitación?</p>
+          <label><input type="radio" name="pc-room" value="Sí" required> Sí</label>
+          <label><input type="radio" name="pc-room" value="No"> No</label>
+        </div>
+
+        <div class="form-group">
+          <label for="pc-frequency">¿Con qué frecuencia utilizas el ordenador?</label>
+          <select id="pc-frequency" required>
             <option value="">Selecciona</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
+            <option value="A diario">A diario</option>
+            <option value="2 o más veces a la semana">2 o más veces a la semana</option>
+            <option value="2 veces o menos a la semana">2 veces o menos a la semana</option>
+            <option value="Solo los fines de semana">Solo los fines de semana</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label for="dc2">Cuando trabajo con información digital, sé buscarla, seleccionarla y reorganizarla para desarrollar ideas personales.</label>
-          <select id="dc2" required>
-            <option value="">Selecciona</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="dc3">Utilizo herramientas digitales para expresar ideas propias o desarrollar proyectos personales.</label>
-          <select id="dc3" required>
-            <option value="">Selecciona</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="dc4">Suelo combinar distintos recursos o herramientas digitales para crear contenidos nuevos.</label>
-          <select id="dc4" required>
-            <option value="">Selecciona</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="dc5">Uso herramientas digitales para crear o desarrollar contenidos de forma colaborativa con otras personas.</label>
-          <select id="dc5" required>
-            <option value="">Selecciona</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="dc6">Cuando quiero crear algo digitalmente, suelo aprender por mi cuenta a utilizar nuevas herramientas o funciones.</label>
-          <select id="dc6" required>
-            <option value="">Selecciona</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
+          <label for="pc-hours">Número de horas al día que usas el ordenador:</label>
+          <input type="number" id="pc-hours" min="0" max="24" required>
         </div>
 
         <div class="form-group" id="center-wrapper" style="display:none;">
@@ -403,6 +361,57 @@
           <p id="rating-photo-info"></p>
 
           <h4>Ítems de valoración (1 = muy bajo, 10 = muy alto)</h4>
+
+          <button type="button" id="toggle-rubric" class="secondary">Ver rúbrica de valoración</button>
+          <div id="rubric-box" class="hidden rubric-box" aria-live="polite">
+            <p class="note">Consulta esta rúbrica si necesitas aclarar qué significa cada indicador y cómo interpretar la escala.</p>
+
+            <h4>Originalidad y novedad</h4>
+            <ul>
+              <li><strong>1–2:</strong> Imagen previsible o imitativa, sin rasgos personales claros.</li>
+              <li><strong>3–4:</strong> Variación leve sobre lo habitual, con algunos detalles propios.</li>
+              <li><strong>5–6:</strong> Propuesta personal reconocible; combina elementos conocidos con intención.</li>
+              <li><strong>7–8:</strong> Enfoque claramente original o inesperado para el contexto educativo.</li>
+              <li><strong>9–10:</strong> Muy innovadora; sorprende por idea, enfoque o resolución.</li>
+            </ul>
+
+            <h4>Expresión creativa y emocional</h4>
+            <ul>
+              <li><strong>1–2:</strong> No se aprecia intención expresiva o mensaje.</li>
+              <li><strong>3–4:</strong> Intención débil o poco definida.</li>
+              <li><strong>5–6:</strong> Mensaje o emoción reconocible.</li>
+              <li><strong>7–8:</strong> Transmite con claridad un significado personal.</li>
+              <li><strong>9–10:</strong> Muy evocadora; alto poder simbólico o emocional.</li>
+            </ul>
+
+            <h4>Uso innovador de técnicas digitales</h4>
+            <ul>
+              <li><strong>1–2:</strong> Uso muy básico o mecánico de recursos.</li>
+              <li><strong>3–4:</strong> Uso correcto, pero sin intención creativa clara.</li>
+              <li><strong>5–6:</strong> Uso adecuado con algunos elementos creativos.</li>
+              <li><strong>7–8:</strong> Uso intencionado para reforzar la idea (luz, encuadre, edición básica…).</li>
+              <li><strong>9–10:</strong> Uso muy creativo y eficaz de recursos disponibles.</li>
+            </ul>
+
+            <h4>Composición visual y técnica</h4>
+            <ul>
+              <li><strong>1–2:</strong> Problemas técnicos importantes o composición caótica.</li>
+              <li><strong>3–4:</strong> Composición simple o poco cuidada.</li>
+              <li><strong>5–6:</strong> Composición correcta y equilibrada.</li>
+              <li><strong>7–8:</strong> Buena composición, coherente con el mensaje.</li>
+              <li><strong>9–10:</strong> Muy cuidada; organización visual excelente.</li>
+            </ul>
+
+            <h4>Interacción y cocreación</h4>
+            <ul>
+              <li><strong>1–2:</strong> No se aprecia dimensión social/colaborativa.</li>
+              <li><strong>3–4:</strong> Interacción muy limitada o anecdótica.</li>
+              <li><strong>5–6:</strong> Contexto social claro o relación con otros elementos/personas.</li>
+              <li><strong>7–8:</strong> Uso intencionado del entorno o colaboración para crear significado.</li>
+              <li><strong>9–10:</strong> Integración muy rica de interacción, contexto o cocreación.</li>
+            </ul>
+          </div>
+
           <div id="rating-items-container"></div>
 
           <p class="puntf">PUNTF (media de ítems): <span id="puntf-value">0.0</span></p>
@@ -426,11 +435,9 @@
       <p>Desde aquí puedes exportar los datos (CBQD + microtareas con fotografías + valoraciones) en formato CSV para analizarlos estadísticamente.</p>
 
       <div class="admin-export-buttons">
-        <button id="export-csv-button">Descargar CSV (por foto × experto)</button>
+        <button id="export-csv-button">Descargar CSV (largo)</button>
         <button id="export-csv-students-button">Descargar CSV (por alumno)</button>
-        <button id="dedupe-db-button" class="secondary">Depurar duplicados (base de datos)</button>
       </div>
-      <p id="dedupe-db-message" class="note"></p>
       <p class="note">El archivo incluirá una fila por combinación fotografía × experto/a (formato “largo”), incorporando también los datos del CBQD y del alumnado vinculados a cada fotografía.</p>
 
       <h3>Opciones de recogida de datos</h3>
