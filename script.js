@@ -724,32 +724,28 @@ if (savePasswordsButton) {
   });
 }
 
-// Reinicializar base de datos (borrar todas las fotos, valoraciones y sesiones/participantes)
+// Reinicializar base de datos (borrar todas las fotos y valoraciones)
 if (resetDbButton) {
   resetDbButton.addEventListener("click", async () => {
     const ok = confirm(
-      "Esta acción borrará TODO el contenido del experimento (sesiones/alumnado, fotografías y valoraciones). " +
-      "La configuración (centros, ítems, IA, claves, etc.) se mantendrá. ¿Seguro que quieres continuar?"
+      "Esta acción borrará TODAS las fotografías y valoraciones de la base de datos. " +
+      "La configuración (centros, ítems, IA, etc.) se mantendrá. ¿Seguro que quieres continuar?"
     );
     if (!ok) return;
 
     try {
-      const [photosSnap, ratingsSnap, sessionsSnap, participantsSnap] = await Promise.all([
+      const [photosSnap, ratingsSnap] = await Promise.all([
         getDocs(photosCol),
-        getDocs(ratingsCol),
-        getDocs(sessionsCol),
-        getDocs(participantsCol)
+        getDocs(ratingsCol)
       ]);
 
       const ops = [];
       photosSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
       ratingsSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
-      sessionsSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
-      participantsSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
 
       await Promise.all(ops);
 
-      alert("Base de datos reinicializada. Se han borrado sesiones/alumnado, fotografías y valoraciones.");
+      alert("Base de datos reinicializada. Se han borrado todas las fotografías y valoraciones.");
       if (photosList) photosList.innerHTML = "";
       updateAdminSummary();
     } catch (err) {
