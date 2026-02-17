@@ -482,26 +482,11 @@ button.secondary:hover {
 }
 
 
-/* ===== Tarea 2: mejora de legibilidad (bloque de instrucciones) ===== */
-.instructions-box {
-  margin: 10px 0 14px;
-  padding: 12px 14px;
-  border-left: 4px solid #2b6cb0;
-  background: rgba(43, 108, 176, 0.08);
-  border-radius: 10px;
+/* Botón de borrado más agresivo (estudio completo) */
+.danger-button-strong{
+  border: 2px solid #b00020;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.06);
 }
-
-.instructions-box h4 {
-  margin: 0 0 8px;
-  font-size: 1rem;
-}
-
-.instructions-box ul {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.instructions-box li {
-  margin: 6px 0;
-  line-height: 1.35;
+.danger-button-strong:hover{
+  filter: brightness(0.95);
 }

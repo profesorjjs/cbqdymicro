@@ -159,7 +159,8 @@ const centersTextarea = document.getElementById("centers-textarea");
 const saveCentersButton = document.getElementById("save-centers-button");
 const ratingItemsTextarea = document.getElementById("rating-items-textarea");
 const saveRatingItemsButton = document.getElementById("save-rating-items-button");
-const resetDbButton = document.getElementById("reset-db-button");
+const resetRatingsButton = document.getElementById("reset-ratings-button");
+const resetStudyButton = document.getElementById("reset-study-button");
 const studiesSelect = document.getElementById("studies");
 const bachWrapper = document.getElementById("bach-wrapper");
 const ageChart = document.getElementById("age-chart");
@@ -724,38 +725,74 @@ if (savePasswordsButton) {
   });
 }
 
-// Reinicializar base de datos (borrar todas las fotos y valoraciones)
-if (resetDbButton) {
-  resetDbButton.addEventListener("click", async () => {
+// Reinicialización: valoraciones (solo ratings)
+if (resetRatingsButton) {
+  resetRatingsButton.addEventListener("click", async () => {
     const ok = confirm(
-      "Esta acción borrará TODAS las fotografías y valoraciones de la base de datos. " +
-      "La configuración (centros, ítems, IA, etc.) se mantendrá. ¿Seguro que quieres continuar?"
+      "Esta acción borrará únicamente las VALORACIONES de expertos/as (colección 'ratings').\n\n" +
+      "Se conservarán sesiones, datos del alumnado, fotografías y análisis automáticos (IA).\n\n" +
+      "¿Quieres continuar?"
     );
     if (!ok) return;
 
     try {
-      const [photosSnap, ratingsSnap] = await Promise.all([
+      const ratingsSnap = await getDocs(ratingsCol);
+      const ops = [];
+      ratingsSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
+      await Promise.all(ops);
+
+      alert("Valoraciones reinicializadas. Se han borrado todas las valoraciones de expertos/as.");
+      if (photosList) photosList.innerHTML = "";
+      updateAdminSummary();
+    } catch (err) {
+      console.error("Error al reinicializar valoraciones:", err);
+      alert("Ha ocurrido un error al reinicializar las valoraciones.");
+    }
+  });
+}
+
+// Reinicialización: estudio completo (sessions + photos + ratings)
+if (resetStudyButton) {
+  resetStudyButton.addEventListener("click", async () => {
+    const ok1 = confirm(
+      "ATENCIÓN: esta acción borrará TODO el estudio (colecciones 'sessions', 'photos' y 'ratings').\n\n" +
+      "La configuración (centros, ítems, IA, claves, etc.) se mantendrá.\n\n" +
+      "¿Seguro que quieres continuar?"
+    );
+    if (!ok1) return;
+
+    const ok2 = confirm(
+      "Confirmación final: esta operación es irreversible.\n\n" +
+      "Escribe mentalmente 'BORRAR TODO' y pulsa Aceptar solo si estás completamente seguro/a."
+    );
+    if (!ok2) return;
+
+    try {
+      const [sessionsSnap, photosSnap, ratingsSnap] = await Promise.all([
+        getDocs(collection(db, "sessions")),
         getDocs(photosCol),
         getDocs(ratingsCol)
       ]);
 
       const ops = [];
+      sessionsSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
       photosSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
       ratingsSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
 
       await Promise.all(ops);
 
-      alert("Base de datos reinicializada. Se han borrado todas las fotografías y valoraciones.");
+      alert("Estudio reinicializado. Se han borrado sesiones, fotografías y valoraciones.");
       if (photosList) photosList.innerHTML = "";
       updateAdminSummary();
     } catch (err) {
-      console.error("Error al reinicializar la base de datos:", err);
-      alert("Ha ocurrido un error al reinicializar la base de datos.");
+      console.error("Error al reinicializar el estudio:", err);
+      alert("Ha ocurrido un error al reinicializar el estudio.");
     }
   });
 }
 
 // ================================================
+
 // Redimensionar y comprimir la imagen (adaptado a móvil)
 // ================================================
 function resizeImage(file, maxWidth = 1920, maxHeight = 1920, quality = 0.7) {

@@ -304,18 +304,15 @@
 
       <section class="wizard-step hidden" data-step="4">
         <h3>4) Tarea 2 — Fotografía creativa del centro educativo</h3>
-        <div class="instructions-box" role="note" aria-label="Instrucciones de la tarea 2">
-          <h4>Instrucciones</h4>
-          <ul>
-            <li>Haz una sola foto dentro del centro educativo (o en su entorno inmediato).</li>
-            <li>Elige un objeto, un espacio o una situación cotidiana (por ejemplo, un aula, un pasillo, una pizarra, una silla, una mesa, un material de clase…).</li>
-            <li>Tu objetivo es mostrarlo de una forma diferente a la habitual, como si quisieras darle otro significado o contar algo con la imagen.</li>
-            <li>Puedes jugar con el encuadre, el punto de vista, la luz o la idea que transmite la foto.</li>
-            <li>No escribas ningún texto ni añadas explicaciones.</li>
-            <li>No uses filtros ni ediciones complejas.</li>
-            <li>La foto debe hablar por sí sola.</li>
-          </ul>
-        </div>
+        <p class="note">
+          Haz una sola foto dentro del centro educativo (o en su entorno inmediato).<br>
+          Elige un objeto, un espacio o una situación cotidiana (por ejemplo, un aula, un pasillo, una pizarra, una silla, una mesa, un material de clase…).<br>
+          Tu objetivo es mostrarlo de una forma diferente a la habitual, como si quisieras darle otro significado o contar algo con la imagen.<br>
+          Puedes jugar con el encuadre, el punto de vista, la luz o la idea que transmite la foto.<br>
+          No escribas ningún texto ni añadas explicaciones.<br>
+          No uses filtros ni ediciones complejas.<br>
+          La foto debe hablar por sí sola.
+        </p>
 
         <form id="task2-form">
           <div class="form-group">
@@ -565,11 +562,20 @@
 
       <h3>Gestión del experimento</h3>
       <div class="form-group">
-        <button type="button" id="reset-db-button" class="danger-button">
-          Reinicializar base de datos (borrar todas las fotografías y valoraciones)
+        <button type="button" id="reset-ratings-button" class="danger-button">
+          Reinicializar valoraciones (borrar únicamente valoraciones de expertos/as)
         </button>
         <p class="note">
-          Úsalo solo cuando quieras comenzar un experimento desde cero. No afecta a la configuración (centros, ítems, IA, etc.).
+          Elimina solo las valoraciones (colección <code>ratings</code>). Se conservan las sesiones, los datos del alumnado, las fotografías y los análisis automáticos (IA).
+        </p>
+      </div>
+
+      <div class="form-group">
+        <button type="button" id="reset-study-button" class="danger-button danger-button-strong">
+          Reinicializar estudio completo (borrar sesiones, fotografías y valoraciones)
+        </button>
+        <p class="note">
+          Úsalo solo si necesitas empezar <strong>completamente desde cero</strong>. Se borrarán <code>sessions</code>, <code>photos</code> y <code>ratings</code>. La configuración (centros, ítems, IA, claves, etc.) se mantiene.
         </p>
       </div>
 
