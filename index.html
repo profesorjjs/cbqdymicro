@@ -403,73 +403,6 @@
           <p id="rating-photo-info"></p>
 
           <h4>Ítems de valoración (1 = muy bajo, 10 = muy alto)</h4>
-
-          <!-- Rúbrica desplegable (ayuda para expertos/as) -->
-          <button type="button" id="rubric-toggle" class="secondary" aria-expanded="false" aria-controls="rubric-panel">
-            Ver rúbrica de valoración
-          </button>
-
-          <div id="rubric-panel" class="rubric-panel hidden" role="region" aria-label="Rúbrica de valoración">
-            <p class="rubric-help">
-              Consulta esta rúbrica si necesitas aclarar qué significa cada indicador y cómo interpretar la escala.
-            </p>
-
-            <div class="rubric-block">
-              <h5>Originalidad y novedad</h5>
-              <ul>
-                <li><strong>1–2:</strong> Imagen previsible o imitativa, sin rasgos personales claros.</li>
-                <li><strong>3–4:</strong> Variación leve sobre lo habitual, con algunos detalles propios.</li>
-                <li><strong>5–6:</strong> Propuesta personal reconocible; combina elementos conocidos con intención.</li>
-                <li><strong>7–8:</strong> Enfoque claramente original o inesperado para el contexto educativo.</li>
-                <li><strong>9–10:</strong> Muy innovadora; sorprende por idea, enfoque o resolución.</li>
-              </ul>
-            </div>
-
-            <div class="rubric-block">
-              <h5>Expresión creativa y emocional</h5>
-              <ul>
-                <li><strong>1–2:</strong> No se aprecia intención expresiva o mensaje.</li>
-                <li><strong>3–4:</strong> Intención débil o poco definida.</li>
-                <li><strong>5–6:</strong> Mensaje o emoción reconocible.</li>
-                <li><strong>7–8:</strong> Transmite con claridad un significado personal.</li>
-                <li><strong>9–10:</strong> Muy evocadora; alto poder simbólico o emocional.</li>
-              </ul>
-            </div>
-
-            <div class="rubric-block">
-              <h5>Uso innovador de técnicas digitales</h5>
-              <ul>
-                <li><strong>1–2:</strong> Uso muy básico o mecánico de recursos.</li>
-                <li><strong>3–4:</strong> Uso correcto, pero sin intención creativa clara.</li>
-                <li><strong>5–6:</strong> Uso adecuado con algunos elementos creativos.</li>
-                <li><strong>7–8:</strong> Uso intencionado para reforzar la idea (luz, encuadre, edición básica…).</li>
-                <li><strong>9–10:</strong> Uso muy creativo y eficaz de recursos disponibles.</li>
-              </ul>
-            </div>
-
-            <div class="rubric-block">
-              <h5>Composición visual y técnica</h5>
-              <ul>
-                <li><strong>1–2:</strong> Problemas técnicos importantes o composición caótica.</li>
-                <li><strong>3–4:</strong> Composición simple o poco cuidada.</li>
-                <li><strong>5–6:</strong> Composición correcta y equilibrada.</li>
-                <li><strong>7–8:</strong> Buena composición, coherente con el mensaje.</li>
-                <li><strong>9–10:</strong> Muy cuidada; organización visual excelente.</li>
-              </ul>
-            </div>
-
-            <div class="rubric-block">
-              <h5>Interacción y cocreación</h5>
-              <ul>
-                <li><strong>1–2:</strong> No se aprecia dimensión social/colaborativa.</li>
-                <li><strong>3–4:</strong> Interacción muy limitada o anecdótica.</li>
-                <li><strong>5–6:</strong> Contexto social claro o relación con otros elementos/personas.</li>
-                <li><strong>7–8:</strong> Uso intencionado del entorno o colaboración para crear significado.</li>
-                <li><strong>9–10:</strong> Integración muy rica de interacción, contexto o cocreación.</li>
-              </ul>
-            </div>
-          </div>
-
           <div id="rating-items-container"></div>
 
           <p class="puntf">PUNTF (media de ítems): <span id="puntf-value">0.0</span></p>
@@ -629,11 +562,20 @@
 
       <h3>Gestión del experimento</h3>
       <div class="form-group">
-        <button type="button" id="reset-db-button" class="danger-button">
-          Reinicializar base de datos (borrar todas las fotografías y valoraciones)
+        <button type="button" id="reset-ratings-button" class="danger-button">
+          Reinicializar valoraciones (borrar únicamente valoraciones de expertos/as)
         </button>
         <p class="note">
-          Úsalo solo cuando quieras comenzar un experimento desde cero. No afecta a la configuración (centros, ítems, IA, etc.).
+          Elimina solo las valoraciones (colección <code>ratings</code>). Se conservan las sesiones, los datos del alumnado, las fotografías y los análisis automáticos (IA).
+        </p>
+      </div>
+
+      <div class="form-group">
+        <button type="button" id="reset-study-button" class="danger-button danger-button-strong">
+          Reinicializar estudio completo (borrar sesiones, fotografías y valoraciones)
+        </button>
+        <p class="note">
+          Úsalo solo si necesitas empezar <strong>completamente desde cero</strong>. Se borrarán <code>sessions</code>, <code>photos</code> y <code>ratings</code>. La configuración (centros, ítems, IA, claves, etc.) se mantiene.
         </p>
       </div>
 
