@@ -490,3 +490,62 @@ button.secondary:hover {
 .danger-button-strong:hover{
   filter: brightness(0.95);
 }
+/* =========================================================
+   Mejora de legibilidad SOLO de los textos de instrucciones
+   de las microtareas (pasos 3, 4 y 5 del wizard de alumnado)
+   Sin afectar a previsualizaciones, CBQD, panel admin ni expertos.
+   ========================================================= */
+.wizard-step[data-step="3"] > h3 + p.note,
+.wizard-step[data-step="4"] > h3 + p.note,
+.wizard-step[data-step="5"] > h3 + p.note {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #1a237e;
+  background: #f0f2ff;
+  border-left: 4px solid #3f51b5;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+
+/* ----- Expertos: rúbrica de valoración (panel desplegable) ----- */
+.rubric-controls {
+  margin: 0.35rem 0 0.75rem;
+}
+
+.rubric-panel {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: #f7f7ff;
+  border: 1px solid #e3e6ff;
+}
+
+.rubric-intro {
+  margin-top: 0;
+  margin-bottom: 0.8rem;
+}
+
+.rubric-item + .rubric-item {
+  margin-top: 0.85rem;
+}
+
+.rubric-item h5 {
+  margin: 0 0 0.35rem;
+  color: #1a237e;
+  font-size: 0.95rem;
+}
+
+.rubric-item ul {
+  margin: 0 0 0.25rem 1.1rem;
+  padding: 0;
+}
+
+.rubric-item li {
+  margin: 0.2rem 0;
+  line-height: 1.35;
+  font-size: 0.9rem;
+  color: #333;
+}

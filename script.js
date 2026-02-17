@@ -193,6 +193,17 @@ const savePasswordsButton = document.getElementById("save-passwords-button");
 
 // Rating dinámico (expertos)
 const ratingItemsContainer = document.getElementById("rating-items-container");
+// Rúbrica (panel desplegable en la valoración de expertos)
+const toggleRubricButton = document.getElementById("toggle-rubric-button");
+const rubricPanel = document.getElementById("rubric-panel");
+if (toggleRubricButton && rubricPanel) {
+  toggleRubricButton.addEventListener("click", () => {
+    const willShow = rubricPanel.classList.contains("hidden");
+    rubricPanel.classList.toggle("hidden");
+    toggleRubricButton.textContent = willShow ? "Ocultar rúbrica de valoración" : "Ver rúbrica de valoración";
+  });
+}
+
 const puntfSpan = document.getElementById("puntf-value");
 let ratingControls = [];
 
