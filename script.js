@@ -1525,7 +1525,24 @@ function renderCbqd() {
     return;
   }
 
+  function addCbqdSectionTitle(text) {
+    const div = document.createElement("div");
+    div.className = "cbqd-section-title";
+    div.innerHTML = `<p><strong>${text}</strong></p>`;
+    cbqdItemsHost.appendChild(div);
+  }
+
   items.forEach((it, idx) => {
+    // Indicaciones por bloques (según el número de pregunta mostrado al alumnado)
+    const qn = idx + 1;
+    if (qn === 1) {
+      addCbqdSectionTitle("¿CUÁNTAS VECES EN LOS ÚLTIMOS TRES MESES ...");
+    } else if (qn === 8) {
+      addCbqdSectionTitle("¿CUÁNTAS VECES EN EL ÚLTIMO AÑO ...");
+    } else if (qn === 19) {
+      addCbqdSectionTitle("¿CUÁNTAS VECES EN TU VIDA (ALGUNA VEZ) ...");
+    }
+
     const box = document.createElement("div");
     box.className = "cbqd-item";
     box.dataset.cbqdId = String(it.id);
@@ -1906,12 +1923,15 @@ submitAllBtn?.addEventListener("click", async () => {
     const vocation = document.getElementById("vocation")?.value?.trim?.() || "";
     const studiesFather = document.getElementById("studies-father")?.value || "";
     const studiesMother = document.getElementById("studies-mother")?.value || "";
-    const rep = document.querySelector('input[name="rep"]:checked')?.value || "";
-    const fail = document.querySelector('input[name="fail"]:checked')?.value || "";
-    const pcsHome = Number(document.getElementById("pcs-home")?.value || 0);
-    const pcRoom = document.querySelector('input[name="pc-room"]:checked')?.value || "";
-    const pcFrequency = document.getElementById("pc-frequency")?.value || "";
-    const pcHours = Number(document.getElementById("pc-hours")?.value || 0);
+    const avgGrade = Number(document.getElementById("avg-grade")?.value || NaN);
+    const digitalCreativity = {
+      dc1: Number(document.getElementById("dc1")?.value || NaN),
+      dc2: Number(document.getElementById("dc2")?.value || NaN),
+      dc3: Number(document.getElementById("dc3")?.value || NaN),
+      dc4: Number(document.getElementById("dc4")?.value || NaN),
+      dc5: Number(document.getElementById("dc5")?.value || NaN),
+      dc6: Number(document.getElementById("dc6")?.value || NaN)
+    };
     const center = document.getElementById("center")?.value || "";
 
     const privacyOk = document.getElementById("privacy-ok")?.checked;
@@ -1977,12 +1997,15 @@ submitAllBtn?.addEventListener("click", async () => {
       vocation,
       studiesFather,
       studiesMother,
-      rep,
-      fail,
-      pcsHome,
-      pcRoom,
-      pcFrequency,
-      pcHours,
+      avgGrade: Number.isFinite(avgGrade) ? avgGrade : null,
+      digitalCreativity: {
+        dc1: Number.isFinite(digitalCreativity.dc1) ? digitalCreativity.dc1 : null,
+        dc2: Number.isFinite(digitalCreativity.dc2) ? digitalCreativity.dc2 : null,
+        dc3: Number.isFinite(digitalCreativity.dc3) ? digitalCreativity.dc3 : null,
+        dc4: Number.isFinite(digitalCreativity.dc4) ? digitalCreativity.dc4 : null,
+        dc5: Number.isFinite(digitalCreativity.dc5) ? digitalCreativity.dc5 : null,
+        dc6: Number.isFinite(digitalCreativity.dc6) ? digitalCreativity.dc6 : null
+      },
       center: globalConfig.askCenter ? center : ""
     };
 
@@ -2022,12 +2045,15 @@ submitAllBtn?.addEventListener("click", async () => {
       vocation,
       studiesFather,
       studiesMother,
-      rep,
-      fail,
-      pcsHome,
-      pcRoom,
-      pcFrequency,
-      pcHours,
+      avgGrade: Number.isFinite(avgGrade) ? avgGrade : null,
+      digitalCreativity: {
+        dc1: Number.isFinite(digitalCreativity.dc1) ? digitalCreativity.dc1 : null,
+        dc2: Number.isFinite(digitalCreativity.dc2) ? digitalCreativity.dc2 : null,
+        dc3: Number.isFinite(digitalCreativity.dc3) ? digitalCreativity.dc3 : null,
+        dc4: Number.isFinite(digitalCreativity.dc4) ? digitalCreativity.dc4 : null,
+        dc5: Number.isFinite(digitalCreativity.dc5) ? digitalCreativity.dc5 : null,
+        dc6: Number.isFinite(digitalCreativity.dc6) ? digitalCreativity.dc6 : null
+      },
       center: globalConfig.askCenter ? center : "",
 
       cbqdEnabled: cbqdEnabledNow,
@@ -2134,12 +2160,15 @@ if (uploadForm) uploadForm.addEventListener("submit", async (e) => {
   const studiesFather = document.getElementById("studies-father").value;
   const studiesMother = document.getElementById("studies-mother").value;
 
-  const rep = document.querySelector('input[name="rep"]:checked')?.value || "";
-  const fail = document.querySelector('input[name="fail"]:checked')?.value || "";
-  const pcsHome = Number(document.getElementById("pcs-home").value);
-  const pcRoom = document.querySelector('input[name="pc-room"]:checked')?.value || "";
-  const pcFrequency = document.getElementById("pc-frequency").value;
-  const pcHours = Number(document.getElementById("pc-hours").value);
+  const avgGrade = Number(document.getElementById("avg-grade")?.value || NaN);
+  const digitalCreativity = {
+    dc1: Number(document.getElementById("dc1")?.value || NaN),
+    dc2: Number(document.getElementById("dc2")?.value || NaN),
+    dc3: Number(document.getElementById("dc3")?.value || NaN),
+    dc4: Number(document.getElementById("dc4")?.value || NaN),
+    dc5: Number(document.getElementById("dc5")?.value || NaN),
+    dc6: Number(document.getElementById("dc6")?.value || NaN)
+  };
   const center = centerSelect ? centerSelect.value.trim() : "";
 
   const privacyOk = document.getElementById("privacy-ok");
@@ -2224,13 +2253,16 @@ if (uploadForm) uploadForm.addEventListener("submit", async (e) => {
       vocation: vocation,
       studiesFather: studiesFather,
       studiesMother: studiesMother,
-      rep: rep,
-      fail: fail,
-      pcsHome: pcsHome,
-      pcRoom: pcRoom,
-      pcFrequency: pcFrequency,
-      pcHours: pcHours,
-      center: center,
+      avgGrade: Number.isFinite(avgGrade) ? avgGrade : null,
+      digitalCreativity: {
+        dc1: Number.isFinite(digitalCreativity.dc1) ? digitalCreativity.dc1 : null,
+        dc2: Number.isFinite(digitalCreativity.dc2) ? digitalCreativity.dc2 : null,
+        dc3: Number.isFinite(digitalCreativity.dc3) ? digitalCreativity.dc3 : null,
+        dc4: Number.isFinite(digitalCreativity.dc4) ? digitalCreativity.dc4 : null,
+        dc5: Number.isFinite(digitalCreativity.dc5) ? digitalCreativity.dc5 : null,
+        dc6: Number.isFinite(digitalCreativity.dc6) ? digitalCreativity.dc6 : null
+      },
+      center: globalConfig.askCenter ? center : "",
 
       aiFeatures: aiFeatures,
       aiScore: aiScore,
@@ -2299,19 +2331,6 @@ const photoRatingCard = document.getElementById("photo-rating-card");
 const ratingPhoto = document.getElementById("rating-photo");
 const ratingPhotoInfo = document.getElementById("rating-photo-info");
 const ratingMessage = document.getElementById("rating-message");
-const toggleRubricBtn = document.getElementById("toggle-rubric");
-const rubricBox = document.getElementById("rubric-box");
-
-// Rúbrica (opcional): mostrar/ocultar sin afectar a la valoración
-if (toggleRubricBtn && rubricBox) {
-  toggleRubricBtn.addEventListener("click", () => {
-    const willShow = rubricBox.classList.contains("hidden");
-    rubricBox.classList.toggle("hidden");
-    toggleRubricBtn.textContent = willShow
-      ? "Ocultar rúbrica de valoración"
-      : "Ver rúbrica de valoración";
-  });
-}
 
 let currentPhotoForExpert = null;
 
@@ -2791,12 +2810,13 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "vocacion",
       "estudios_padre",
       "estudios_madre",
-      "repite_curso",
-      "suspensos",
-      "num_ordenadores_casa",
-      "ordenador_habitacion",
-      "frecuencia_uso_ordenador",
-      "horas_diarias_ordenador",
+      "nota_media_curso_pasado",
+      "dc1",
+      "dc2",
+      "dc3",
+      "dc4",
+      "dc5",
+      "dc6",
       "centro_educativo",
 
       // CBQD
@@ -2847,12 +2867,8 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         vocation: d.vocation || p?.vocation || "",
         studiesFather: d.studiesFather || p?.studiesFather || "",
         studiesMother: d.studiesMother || p?.studiesMother || "",
-        rep: d.rep || p?.rep || "",
-        fail: d.fail || p?.fail || "",
-        pcsHome: d.pcsHome ?? p?.pcsHome ?? "",
-        pcRoom: d.pcRoom || p?.pcRoom || "",
-        pcFrequency: d.pcFrequency || p?.pcFrequency || "",
-        pcHours: d.pcHours ?? p?.pcHours ?? "",
+        avgGrade: (d.avgGrade ?? p?.avgGrade ?? ""),
+        digitalCreativity: (d.digitalCreativity || p?.digitalCreativity || {}),
         center: d.center || p?.center || ""
       };
     }
@@ -2927,12 +2943,13 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         dem.vocation,
         dem.studiesFather,
         dem.studiesMother,
-        dem.rep,
-        dem.fail,
-        dem.pcsHome,
-        dem.pcRoom,
-        dem.pcFrequency,
-        dem.pcHours,
+        dem.avgGrade ?? "",
+        dem.digitalCreativity?.dc1 ?? "",
+        dem.digitalCreativity?.dc2 ?? "",
+        dem.digitalCreativity?.dc3 ?? "",
+        dem.digitalCreativity?.dc4 ?? "",
+        dem.digitalCreativity?.dc5 ?? "",
+        dem.digitalCreativity?.dc6 ?? "",
         dem.center,
 
         cbqd.enabled ? "1" : "0",
@@ -3058,12 +3075,13 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       "vocation",
       "studiesFather",
       "studiesMother",
-      "rep",
-      "fail",
-      "pcsHome",
-      "pcRoom",
-      "pcFrequency",
-      "pcHours",
+      "avgGrade",
+      "dc1",
+      "dc2",
+      "dc3",
+      "dc4",
+      "dc5",
+      "dc6",
       "center",
       "cbqd_enabled",
       "cbqd_version",
@@ -3099,6 +3117,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
     Object.entries(sessions).forEach(([sessionId, s]) => {
       const dem = s?.demographics || {};
       const cbqd = s?.cbqd || {};
+      const demDc = dem?.digitalCreativity || {};
 
       // Fotos por tarea (si hubiese más de una, elegimos la más reciente por createdAt)
       const sessionPhotos = (photosBySession[sessionId] || []).slice();
@@ -3109,9 +3128,19 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       });
 
       const byTask = { 1: null, 2: null, 3: null };
+
+      function taskKeyFromPhoto(p) {
+        const raw = (p?.taskId ?? "").toString();
+        if (raw === "1" || raw === "2" || raw === "3") return Number(raw);
+        if (raw === "MT1_AUTOEXP") return 1;
+        if (raw === "MT2_ESCOLAR") return 2;
+        if (raw === "MT3_TRANSFORM") return 3;
+        return null;
+      }
+
       sessionPhotos.forEach(p => {
-        const t = Number(p.taskId);
-        if (![1, 2, 3].includes(t)) return;
+        const t = taskKeyFromPhoto(p);
+        if (![1, 2, 3].includes(t || 0)) return;
         if (!byTask[t]) byTask[t] = p;
       });
 
@@ -3159,12 +3188,13 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         dem.vocation ?? "",
         dem.studiesFather ?? "",
         dem.studiesMother ?? "",
-        dem.rep ?? "",
-        dem.fail ?? "",
-        dem.pcsHome ?? "",
-        dem.pcRoom ?? "",
-        dem.pcFrequency ?? "",
-        dem.pcHours ?? "",
+        dem.avgGrade ?? "",
+        demDc.dc1 ?? "",
+        demDc.dc2 ?? "",
+        demDc.dc3 ?? "",
+        demDc.dc4 ?? "",
+        demDc.dc5 ?? "",
+        demDc.dc6 ?? "",
         dem.center ?? "",
 
         cbqd.enabled ? "1" : "0",
