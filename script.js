@@ -1474,57 +1474,10 @@ function resetUploaderState({ newParticipant = true } = {}) {
     submitAllBtn.textContent = SUBMIT_ALL_DEFAULT_LABEL;
   }
 
-  // Rehabilita navegación (p. ej. \"Atrás\") para el siguiente alumno
-  setWizardNavDisabled(false);
-
   // Nuevo participante (evita arrastrar identificación entre alumnos)
   if (newParticipant) clearParticipantId();
-
-
-  // Limpia el cache de sesión actual (para que el siguiente alumno empiece limpio)
-  clearCurrentSessionCache();
 }
 
-
-
-// ----- Idempotencia de envíos (evita duplicados en Firestore) -----
-// Si el envío falla a mitad (corte de red, refresh, etc.), reutilizamos el mismo sessionId
-// y sobreescribimos los documentos de fotos por tarea en vez de crear nuevos.
-const LS_CURRENT_SESSION_ID_KEY = "cbqd_current_session_id";
-const LS_CURRENT_SUBMITTED_AT_KEY = "cbqd_current_submitted_at";
-
-function getOrCreateCurrentSessionId() {
-  try {
-    const existing = localStorage.getItem(LS_CURRENT_SESSION_ID_KEY);
-    if (existing) return existing;
-  } catch (_) {}
-  const id = newSessionId();
-  try { localStorage.setItem(LS_CURRENT_SESSION_ID_KEY, id); } catch (_) {}
-  return id;
-}
-
-function getOrCreateCurrentSubmittedAt() {
-  try {
-    const existing = localStorage.getItem(LS_CURRENT_SUBMITTED_AT_KEY);
-    if (existing) return existing;
-  } catch (_) {}
-  const ts = nowIso();
-  try { localStorage.setItem(LS_CURRENT_SUBMITTED_AT_KEY, ts); } catch (_) {}
-  return ts;
-}
-
-function clearCurrentSessionCache() {
-  try { localStorage.removeItem(LS_CURRENT_SESSION_ID_KEY); } catch (_) {}
-  try { localStorage.removeItem(LS_CURRENT_SUBMITTED_AT_KEY); } catch (_) {}
-}
-
-// Deshabilitar/habilitar navegación del wizard (para evitar reenvíos tras un envío correcto)
-function setWizardNavDisabled(disabled) {
-  [wizardBack, wizardBack3, wizardBack4, wizardBack5, wizardNext, wizardNext2, wizardNext3, wizardNext4].forEach(btn => {
-    if (!btn) return;
-    btn.disabled = !!disabled;
-  });
-}
 
 function newSessionId() {
   return `S_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -1572,24 +1525,7 @@ function renderCbqd() {
     return;
   }
 
-  function addCbqdSectionTitle(text) {
-    const div = document.createElement("div");
-    div.className = "cbqd-section-title";
-    div.innerHTML = `<p><strong>${text}</strong></p>`;
-    cbqdItemsHost.appendChild(div);
-  }
-
   items.forEach((it, idx) => {
-    // Indicaciones por bloques (según el número de pregunta mostrado al alumnado)
-    const qn = idx + 1;
-    if (qn === 1) {
-      addCbqdSectionTitle("¿CUÁNTAS VECES EN LOS ÚLTIMOS TRES MESES ...");
-    } else if (qn === 8) {
-      addCbqdSectionTitle("¿CUÁNTAS VECES EN EL ÚLTIMO AÑO ...");
-    } else if (qn === 19) {
-      addCbqdSectionTitle("¿CUÁNTAS VECES EN TU VIDA (ALGUNA VEZ) ...");
-    }
-
     const box = document.createElement("div");
     box.className = "cbqd-item";
     box.dataset.cbqdId = String(it.id);
@@ -1959,8 +1895,8 @@ submitAllBtn?.addEventListener("click", async () => {
     }
 
     const participantId = ensureParticipantId();
-    const sessionId = getOrCreateCurrentSessionId();
-    const submittedAt = getOrCreateCurrentSubmittedAt();
+    const sessionId = newSessionId();
+    const submittedAt = nowIso();
 
     // Demografía (campos ya existentes)
     const ageValue = Number(document.getElementById("age")?.value || 0);
@@ -1970,15 +1906,12 @@ submitAllBtn?.addEventListener("click", async () => {
     const vocation = document.getElementById("vocation")?.value?.trim?.() || "";
     const studiesFather = document.getElementById("studies-father")?.value || "";
     const studiesMother = document.getElementById("studies-mother")?.value || "";
-    const avgGrade = Number(document.getElementById("avg-grade")?.value || NaN);
-    const digitalCreativity = {
-      dc1: Number(document.getElementById("dc1")?.value || NaN),
-      dc2: Number(document.getElementById("dc2")?.value || NaN),
-      dc3: Number(document.getElementById("dc3")?.value || NaN),
-      dc4: Number(document.getElementById("dc4")?.value || NaN),
-      dc5: Number(document.getElementById("dc5")?.value || NaN),
-      dc6: Number(document.getElementById("dc6")?.value || NaN)
-    };
+    const rep = document.querySelector('input[name="rep"]:checked')?.value || "";
+    const fail = document.querySelector('input[name="fail"]:checked')?.value || "";
+    const pcsHome = Number(document.getElementById("pcs-home")?.value || 0);
+    const pcRoom = document.querySelector('input[name="pc-room"]:checked')?.value || "";
+    const pcFrequency = document.getElementById("pc-frequency")?.value || "";
+    const pcHours = Number(document.getElementById("pc-hours")?.value || 0);
     const center = document.getElementById("center")?.value || "";
 
     const privacyOk = document.getElementById("privacy-ok")?.checked;
@@ -2044,15 +1977,12 @@ submitAllBtn?.addEventListener("click", async () => {
       vocation,
       studiesFather,
       studiesMother,
-      avgGrade: Number.isFinite(avgGrade) ? avgGrade : null,
-      digitalCreativity: {
-        dc1: Number.isFinite(digitalCreativity.dc1) ? digitalCreativity.dc1 : null,
-        dc2: Number.isFinite(digitalCreativity.dc2) ? digitalCreativity.dc2 : null,
-        dc3: Number.isFinite(digitalCreativity.dc3) ? digitalCreativity.dc3 : null,
-        dc4: Number.isFinite(digitalCreativity.dc4) ? digitalCreativity.dc4 : null,
-        dc5: Number.isFinite(digitalCreativity.dc5) ? digitalCreativity.dc5 : null,
-        dc6: Number.isFinite(digitalCreativity.dc6) ? digitalCreativity.dc6 : null
-      },
+      rep,
+      fail,
+      pcsHome,
+      pcRoom,
+      pcFrequency,
+      pcHours,
       center: globalConfig.askCenter ? center : ""
     };
 
@@ -2061,7 +1991,6 @@ submitAllBtn?.addEventListener("click", async () => {
       sessionId,
       participantId,
       submittedAt,
-      createdAt: submittedAt,
       demographics,
       cbqd: {
         enabled: cbqdEnabledNow,
@@ -2093,15 +2022,12 @@ submitAllBtn?.addEventListener("click", async () => {
       vocation,
       studiesFather,
       studiesMother,
-      avgGrade: Number.isFinite(avgGrade) ? avgGrade : null,
-      digitalCreativity: {
-        dc1: Number.isFinite(digitalCreativity.dc1) ? digitalCreativity.dc1 : null,
-        dc2: Number.isFinite(digitalCreativity.dc2) ? digitalCreativity.dc2 : null,
-        dc3: Number.isFinite(digitalCreativity.dc3) ? digitalCreativity.dc3 : null,
-        dc4: Number.isFinite(digitalCreativity.dc4) ? digitalCreativity.dc4 : null,
-        dc5: Number.isFinite(digitalCreativity.dc5) ? digitalCreativity.dc5 : null,
-        dc6: Number.isFinite(digitalCreativity.dc6) ? digitalCreativity.dc6 : null
-      },
+      rep,
+      fail,
+      pcsHome,
+      pcRoom,
+      pcFrequency,
+      pcHours,
       center: globalConfig.askCenter ? center : "",
 
       cbqdEnabled: cbqdEnabledNow,
@@ -2111,10 +2037,9 @@ submitAllBtn?.addEventListener("click", async () => {
       cbqdResponses: cbqdResponses
     };
 
-    await setDoc(doc(db, "photos", `${sessionId}_MT1_AUTOEXP`), {
+    await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT1_AUTOEXP",
-      createdAt: submittedAt,
       dataUrl: mt1.dataUrl,
       aiFeatures: mt1.aiFeatures,
       aiScore: mt1.aiScore,
@@ -2122,10 +2047,9 @@ submitAllBtn?.addEventListener("click", async () => {
       deepAI: mt1.deepAI
     });
 
-    await setDoc(doc(db, "photos", `${sessionId}_MT2_ESCOLAR`), {
+    await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
-      createdAt: submittedAt,
       dataUrl: mt2.dataUrl,
       // Guardamos el texto si existe y se ha rellenado; si no, dejamos null para evitar basura en exportaciones.
       text280: task2Text ? task2Text : null,
@@ -2135,10 +2059,9 @@ submitAllBtn?.addEventListener("click", async () => {
       deepAI: mt2.deepAI
     });
 
-    await setDoc(doc(db, "photos", `${sessionId}_MT3_TRANSFORM`), {
+    await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT3_TRANSFORM",
-      createdAt: submittedAt,
       dataUrl: mt3.dataUrl,
       aiFeatures: mt3.aiFeatures,
       aiScore: mt3.aiScore,
@@ -2158,12 +2081,8 @@ submitAllBtn?.addEventListener("click", async () => {
       submitAllBtn.textContent = "Enviado ✓";
     }
 
-    // También bloquea \"Atrás\" en el último paso para evitar reenvíos accidentales
-    if (wizardBack5) wizardBack5.disabled = true;
-
     // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
     clearParticipantId();
-    clearCurrentSessionCache();
     microtaskAiCache = {};
 
   } catch (err) {
@@ -2215,15 +2134,12 @@ if (uploadForm) uploadForm.addEventListener("submit", async (e) => {
   const studiesFather = document.getElementById("studies-father").value;
   const studiesMother = document.getElementById("studies-mother").value;
 
-  const avgGrade = Number(document.getElementById("avg-grade")?.value || NaN);
-  const digitalCreativity = {
-    dc1: Number(document.getElementById("dc1")?.value || NaN),
-    dc2: Number(document.getElementById("dc2")?.value || NaN),
-    dc3: Number(document.getElementById("dc3")?.value || NaN),
-    dc4: Number(document.getElementById("dc4")?.value || NaN),
-    dc5: Number(document.getElementById("dc5")?.value || NaN),
-    dc6: Number(document.getElementById("dc6")?.value || NaN)
-  };
+  const rep = document.querySelector('input[name="rep"]:checked')?.value || "";
+  const fail = document.querySelector('input[name="fail"]:checked')?.value || "";
+  const pcsHome = Number(document.getElementById("pcs-home").value);
+  const pcRoom = document.querySelector('input[name="pc-room"]:checked')?.value || "";
+  const pcFrequency = document.getElementById("pc-frequency").value;
+  const pcHours = Number(document.getElementById("pc-hours").value);
   const center = centerSelect ? centerSelect.value.trim() : "";
 
   const privacyOk = document.getElementById("privacy-ok");
@@ -2308,16 +2224,13 @@ if (uploadForm) uploadForm.addEventListener("submit", async (e) => {
       vocation: vocation,
       studiesFather: studiesFather,
       studiesMother: studiesMother,
-      avgGrade: Number.isFinite(avgGrade) ? avgGrade : null,
-      digitalCreativity: {
-        dc1: Number.isFinite(digitalCreativity.dc1) ? digitalCreativity.dc1 : null,
-        dc2: Number.isFinite(digitalCreativity.dc2) ? digitalCreativity.dc2 : null,
-        dc3: Number.isFinite(digitalCreativity.dc3) ? digitalCreativity.dc3 : null,
-        dc4: Number.isFinite(digitalCreativity.dc4) ? digitalCreativity.dc4 : null,
-        dc5: Number.isFinite(digitalCreativity.dc5) ? digitalCreativity.dc5 : null,
-        dc6: Number.isFinite(digitalCreativity.dc6) ? digitalCreativity.dc6 : null
-      },
-      center: globalConfig.askCenter ? center : "",
+      rep: rep,
+      fail: fail,
+      pcsHome: pcsHome,
+      pcRoom: pcRoom,
+      pcFrequency: pcFrequency,
+      pcHours: pcHours,
+      center: center,
 
       aiFeatures: aiFeatures,
       aiScore: aiScore,
@@ -2386,6 +2299,19 @@ const photoRatingCard = document.getElementById("photo-rating-card");
 const ratingPhoto = document.getElementById("rating-photo");
 const ratingPhotoInfo = document.getElementById("rating-photo-info");
 const ratingMessage = document.getElementById("rating-message");
+const toggleRubricBtn = document.getElementById("toggle-rubric");
+const rubricBox = document.getElementById("rubric-box");
+
+// Rúbrica (opcional): mostrar/ocultar sin afectar a la valoración
+if (toggleRubricBtn && rubricBox) {
+  toggleRubricBtn.addEventListener("click", () => {
+    const willShow = rubricBox.classList.contains("hidden");
+    rubricBox.classList.toggle("hidden");
+    toggleRubricBtn.textContent = willShow
+      ? "Ocultar rúbrica de valoración"
+      : "Ver rúbrica de valoración";
+  });
+}
 
 let currentPhotoForExpert = null;
 
@@ -2865,13 +2791,12 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "vocacion",
       "estudios_padre",
       "estudios_madre",
-      "nota_media_curso_pasado",
-      "dc1",
-      "dc2",
-      "dc3",
-      "dc4",
-      "dc5",
-      "dc6",
+      "repite_curso",
+      "suspensos",
+      "num_ordenadores_casa",
+      "ordenador_habitacion",
+      "frecuencia_uso_ordenador",
+      "horas_diarias_ordenador",
       "centro_educativo",
 
       // CBQD
@@ -2922,8 +2847,12 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         vocation: d.vocation || p?.vocation || "",
         studiesFather: d.studiesFather || p?.studiesFather || "",
         studiesMother: d.studiesMother || p?.studiesMother || "",
-        avgGrade: (d.avgGrade ?? p?.avgGrade ?? ""),
-        digitalCreativity: (d.digitalCreativity || p?.digitalCreativity || {}),
+        rep: d.rep || p?.rep || "",
+        fail: d.fail || p?.fail || "",
+        pcsHome: d.pcsHome ?? p?.pcsHome ?? "",
+        pcRoom: d.pcRoom || p?.pcRoom || "",
+        pcFrequency: d.pcFrequency || p?.pcFrequency || "",
+        pcHours: d.pcHours ?? p?.pcHours ?? "",
         center: d.center || p?.center || ""
       };
     }
@@ -2998,13 +2927,12 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         dem.vocation,
         dem.studiesFather,
         dem.studiesMother,
-        dem.avgGrade ?? "",
-        dem.digitalCreativity?.dc1 ?? "",
-        dem.digitalCreativity?.dc2 ?? "",
-        dem.digitalCreativity?.dc3 ?? "",
-        dem.digitalCreativity?.dc4 ?? "",
-        dem.digitalCreativity?.dc5 ?? "",
-        dem.digitalCreativity?.dc6 ?? "",
+        dem.rep,
+        dem.fail,
+        dem.pcsHome,
+        dem.pcRoom,
+        dem.pcFrequency,
+        dem.pcHours,
         dem.center,
 
         cbqd.enabled ? "1" : "0",
@@ -3123,20 +3051,19 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
     const header = [
       "session_code",
       "student_code",
-      "submittedAt",      "gender",
+      "createdAt",      "gender",
       "age",
       "studies",
       "bachType",
       "vocation",
       "studiesFather",
       "studiesMother",
-      "avgGrade",
-      "dc1",
-      "dc2",
-      "dc3",
-      "dc4",
-      "dc5",
-      "dc6",
+      "rep",
+      "fail",
+      "pcsHome",
+      "pcRoom",
+      "pcFrequency",
+      "pcHours",
       "center",
       "cbqd_enabled",
       "cbqd_version",
@@ -3172,7 +3099,6 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
     Object.entries(sessions).forEach(([sessionId, s]) => {
       const dem = s?.demographics || {};
       const cbqd = s?.cbqd || {};
-      const demDc = dem?.digitalCreativity || {};
 
       // Fotos por tarea (si hubiese más de una, elegimos la más reciente por createdAt)
       const sessionPhotos = (photosBySession[sessionId] || []).slice();
@@ -3183,19 +3109,9 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       });
 
       const byTask = { 1: null, 2: null, 3: null };
-
-      function taskKeyFromPhoto(p) {
-        const raw = (p?.taskId ?? "").toString();
-        if (raw === "1" || raw === "2" || raw === "3") return Number(raw);
-        if (raw === "MT1_AUTOEXP") return 1;
-        if (raw === "MT2_ESCOLAR") return 2;
-        if (raw === "MT3_TRANSFORM") return 3;
-        return null;
-      }
-
       sessionPhotos.forEach(p => {
-        const t = taskKeyFromPhoto(p);
-        if (![1, 2, 3].includes(t || 0)) return;
+        const t = Number(p.taskId);
+        if (![1, 2, 3].includes(t)) return;
         if (!byTask[t]) byTask[t] = p;
       });
 
@@ -3211,8 +3127,8 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
           photoCode: makePhotoCode(p.photoId),
           photoIdForLookup: p.photoId,
           aiScore: p.aiScore ?? "",
-          localAdvancedScore: p.localAdvanced?.localAdvancedScore ?? "",
-          deepScore: p.deepAI?.deepScore ?? "",
+          localAdvancedScore: p.localAdvancedScore ?? "",
+          deepScore: p.deepScore ?? "",
           puntfMean: m === null ? "" : m.toFixed(2),
           puntfSd: sdev === null ? "" : sdev.toFixed(2),
           puntfN: n || ""
@@ -3235,7 +3151,7 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
       rows.push([
         makeSessionCode(sessionId),
         makeStudentCode(s?.participantId || sessionId),
-        s?.submittedAt || "",
+        s?.createdAt || "",
         dem.gender ?? "",
         dem.age ?? "",
         dem.studies ?? "",
@@ -3243,13 +3159,12 @@ document.getElementById("export-csv-students-button")?.addEventListener("click",
         dem.vocation ?? "",
         dem.studiesFather ?? "",
         dem.studiesMother ?? "",
-        dem.avgGrade ?? "",
-        demDc.dc1 ?? "",
-        demDc.dc2 ?? "",
-        demDc.dc3 ?? "",
-        demDc.dc4 ?? "",
-        demDc.dc5 ?? "",
-        demDc.dc6 ?? "",
+        dem.rep ?? "",
+        dem.fail ?? "",
+        dem.pcsHome ?? "",
+        dem.pcRoom ?? "",
+        dem.pcFrequency ?? "",
+        dem.pcHours ?? "",
         dem.center ?? "",
 
         cbqd.enabled ? "1" : "0",
