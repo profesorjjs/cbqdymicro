@@ -2387,6 +2387,26 @@ const ratingPhoto = document.getElementById("rating-photo");
 const ratingPhotoInfo = document.getElementById("rating-photo-info");
 const ratingMessage = document.getElementById("rating-message");
 
+// Rúbrica desplegable (ayuda contextual para expertos)
+const rubricToggleBtn = document.getElementById("rubric-toggle");
+const rubricPanel = document.getElementById("rubric-panel");
+
+function setRubricOpen(isOpen) {
+  if (!rubricToggleBtn || !rubricPanel) return;
+  rubricPanel.classList.toggle("hidden", !isOpen);
+  rubricToggleBtn.setAttribute("aria-expanded", String(!!isOpen));
+  rubricToggleBtn.textContent = isOpen
+    ? "Ocultar rúbrica de valoración"
+    : "Ver rúbrica de valoración";
+}
+
+if (rubricToggleBtn && rubricPanel) {
+  rubricToggleBtn.addEventListener("click", () => {
+    const isOpen = rubricPanel.classList.contains("hidden");
+    setRubricOpen(isOpen);
+  });
+}
+
 let currentPhotoForExpert = null;
 
 document.getElementById("start-rating-button").addEventListener("click", () => {
@@ -2397,6 +2417,8 @@ document.getElementById("start-rating-button").addEventListener("click", () => {
   }
 
   ratingArea.classList.remove("hidden");
+  // Arrancamos con la rúbrica cerrada para no saturar la pantalla.
+  setRubricOpen(false);
   loadNextPhotoForExpert();
 });
 
@@ -2441,6 +2463,9 @@ async function loadNextPhotoForExpert() {
 
     noPhotosMessage.classList.add("hidden");
     photoRatingCard.classList.remove("hidden");
+
+    // Por consistencia, cada nueva foto abre con la rúbrica cerrada.
+    setRubricOpen(false);
 
     const randomIndex = Math.floor(Math.random() * pending.length);
     const photo = pending[randomIndex];
