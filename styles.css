@@ -365,6 +365,7 @@ button.secondary:hover {
 }
 
 /* ----- Wizard (alumnado) ----- */
+
 .wizard-progress {
   height: 10px;
   background: #e0e0e0;
@@ -482,19 +483,22 @@ button.secondary:hover {
 }
 
 /* Botón de borrado más agresivo (estudio completo) */
-.danger-button-strong{
+
+.danger-button-strong {
   border: 2px solid #b00020;
   box-shadow: 0 1px 0 rgba(0,0,0,0.06);
 }
-.danger-button-strong:hover{
+
+.danger-button-strong:hover {
   filter: brightness(0.95);
 }
 
 /* =========================================================
-   Mejora de visibilidad de instrucciones en microtareas
-   (SIN afectar al resto de notas de la web)
+   Mejora de visibilidad SOLO de las instrucciones
+   de las microtareas del alumnado
    ========================================================= */
-.wizard-step .note {
+
+.wizard-step > h3 + .note {
   font-size: 0.95rem;
   color: #1a237e;
   background: #f0f2ff;
