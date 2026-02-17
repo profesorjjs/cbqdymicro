@@ -426,9 +426,11 @@
       <p>Desde aquí puedes exportar los datos (CBQD + microtareas con fotografías + valoraciones) en formato CSV para analizarlos estadísticamente.</p>
 
       <div class="admin-export-buttons">
-        <button id="export-csv-button">Descargar CSV (largo)</button>
+        <button id="export-csv-button">Descargar CSV (por foto × experto)</button>
         <button id="export-csv-students-button">Descargar CSV (por alumno)</button>
+        <button id="dedupe-db-button" class="secondary">Depurar duplicados (base de datos)</button>
       </div>
+      <p id="dedupe-db-message" class="note"></p>
       <p class="note">El archivo incluirá una fila por combinación fotografía × experto/a (formato “largo”), incorporando también los datos del CBQD y del alumnado vinculados a cada fotografía.</p>
 
       <h3>Opciones de recogida de datos</h3>
