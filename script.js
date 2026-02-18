@@ -2458,6 +2458,15 @@ function formatTaskId(taskId) {
   }
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function loadNextPhotoForExpert() {
   const expertId = document.getElementById("expert-id").value.trim();
   if (!expertId) return;
@@ -2504,11 +2513,33 @@ async function loadNextPhotoForExpert() {
       ? ` | IA_profunda: ${photo.deepAI.deepScore}`
       : "";
 
-    ratingPhotoInfo.textContent =
-      `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
-      `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
-      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
-      aiText1 + aiText2 + aiText3;
+    // Microtarea destacada (número + descripción corta)
+const microtareaLabel = formatTaskId(photo.taskId);
+const microtareaHtml = `
+  <div class="microtask-highlight" role="note" aria-label="Microtarea">
+    <span class="microtask-kicker">Microtarea</span>
+    <span class="microtask-title">${escapeHtml(microtareaLabel)}</span>
+  </div>
+`;
+
+const detailsHtml = `
+  <div class="photo-meta">
+    <div><strong>ID:</strong> ${escapeHtml(photo.id)}</div>
+    <div>
+      <span><strong>Edad:</strong> ${escapeHtml(photo.age)}</span>
+      <span class="sep">·</span>
+      <span><strong>Sexo:</strong> ${escapeHtml(photo.gender)}</span>
+      <span class="sep">·</span>
+      <span><strong>Estudios:</strong> ${escapeHtml(photo.studies)}</span>
+      <span class="sep">·</span>
+      <span><strong>Bachillerato:</strong> ${escapeHtml(photo.bachType || "N/A")}</span>
+    </div>
+    ${photo.text280 ? `<div class="photo-text"><strong>Texto:</strong> ${escapeHtml(photo.text280)}</div>` : ""}
+    <div class="photo-ai">${escapeHtml([aiText1, aiText2, aiText3].filter(Boolean).join(""))}</div>
+  </div>
+`;
+
+ratingPhotoInfo.innerHTML = microtareaHtml + detailsHtml;
 
     ratingControls.forEach(rc => {
       rc.input.value = 5;
