@@ -65,9 +65,9 @@ const DEFAULT_AI_CONFIG = {
 
 // Configuración por defecto de claves
 const DEFAULT_AUTH_CONFIG = {
-  uploaderPassword: "alumno2025",
-  expertPassword: "experto2025",
-  adminPassword: "admin2025"
+  uploaderPassword: "obf:Ii4kKVxfAAZxdw==",
+  expertPassword: "obf:JjohIUBEXQRzcGQ=",
+  adminPassword: "obf:IiY8LVwCAgR2"
 };
 
 // Caché local de contraseñas (ayuda en iOS/Safari si Firestore falla puntualmente)
@@ -80,6 +80,33 @@ function normalizePwd(s) {
     .replace(/\u00A0/g, " ") // NBSP
     .trim();
 }
+// Ofuscación ligera (NO es criptografía). Evita que las claves queden en claro en el código.
+// Ojo: un atacante con DevTools puede revertirlo; su objetivo aquí es reducir exposición “obvia”.
+const OBF_KEY = "CBQD2026";
+
+function obfuscate(plain) {
+  const s = String(plain ?? "");
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    out += String.fromCharCode(s.charCodeAt(i) ^ OBF_KEY.charCodeAt(i % OBF_KEY.length));
+  }
+  return btoa(out);
+}
+
+function deobfuscate(obf) {
+  const raw = atob(String(obf ?? ""));
+  let out = "";
+  for (let i = 0; i < raw.length; i++) {
+    out += String.fromCharCode(raw.charCodeAt(i) ^ OBF_KEY.charCodeAt(i % OBF_KEY.length));
+  }
+  return out;
+}
+
+function getAuthSecret(stored) {
+  const s = String(stored ?? "");
+  return s.startsWith("obf:") ? deobfuscate(s.slice(4)) : s;
+}
+
 
 function loadAuthCache() {
   try {
@@ -322,13 +349,13 @@ function applyConfigToAdmin() {
   // Claves de acceso
   const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
   if (uploaderPasswordInput) {
-    uploaderPasswordInput.value = auth.uploaderPassword || "";
+    uploaderPasswordInput.value = getAuthSecret(auth.uploaderPassword || "");
   }
   if (expertPasswordInput) {
-    expertPasswordInput.value = auth.expertPassword || "";
+    expertPasswordInput.value = getAuthSecret(auth.expertPassword || "");
   }
   if (adminPasswordInput) {
-    adminPasswordInput.value = auth.adminPassword || "";
+    adminPasswordInput.value = getAuthSecret(auth.adminPassword || "");
   }
 
 
@@ -1259,9 +1286,9 @@ document.getElementById("login-button").addEventListener("click", async () => {
 
   const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
   let expected = "";
-  if (role === "uploader") expected = auth.uploaderPassword;
-  else if (role === "expert") expected = auth.expertPassword;
-  else if (role === "admin") expected = auth.adminPassword;
+  if (role === "uploader") expected = getAuthSecret(auth.uploaderPassword);
+  else if (role === "expert") expected = getAuthSecret(auth.expertPassword);
+  else if (role === "admin") expected = getAuthSecret(auth.adminPassword);
 
   expected = normalizePwd(expected);
 
@@ -2458,15 +2485,6 @@ function formatTaskId(taskId) {
   }
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 async function loadNextPhotoForExpert() {
   const expertId = document.getElementById("expert-id").value.trim();
   if (!expertId) return;
@@ -2513,33 +2531,11 @@ async function loadNextPhotoForExpert() {
       ? ` | IA_profunda: ${photo.deepAI.deepScore}`
       : "";
 
-    // Microtarea destacada (número + descripción corta)
-const microtareaLabel = formatTaskId(photo.taskId);
-const microtareaHtml = `
-  <div class="microtask-highlight" role="note" aria-label="Microtarea">
-    <span class="microtask-kicker">Microtarea</span>
-    <span class="microtask-title">${escapeHtml(microtareaLabel)}</span>
-  </div>
-`;
-
-const detailsHtml = `
-  <div class="photo-meta">
-    <div><strong>ID:</strong> ${escapeHtml(photo.id)}</div>
-    <div>
-      <span><strong>Edad:</strong> ${escapeHtml(photo.age)}</span>
-      <span class="sep">·</span>
-      <span><strong>Sexo:</strong> ${escapeHtml(photo.gender)}</span>
-      <span class="sep">·</span>
-      <span><strong>Estudios:</strong> ${escapeHtml(photo.studies)}</span>
-      <span class="sep">·</span>
-      <span><strong>Bachillerato:</strong> ${escapeHtml(photo.bachType || "N/A")}</span>
-    </div>
-    ${photo.text280 ? `<div class="photo-text"><strong>Texto:</strong> ${escapeHtml(photo.text280)}</div>` : ""}
-    <div class="photo-ai">${escapeHtml([aiText1, aiText2, aiText3].filter(Boolean).join(""))}</div>
-  </div>
-`;
-
-ratingPhotoInfo.innerHTML = microtareaHtml + detailsHtml;
+    ratingPhotoInfo.textContent =
+      `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
+      `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
+      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
+      aiText1 + aiText2 + aiText3;
 
     ratingControls.forEach(rc => {
       rc.input.value = 5;
